@@ -32,8 +32,8 @@ namespace DartsRoguelike.Mock
         static readonly Color Ink = new Color(.92f,.94f,.95f);
         static readonly Color Muted = new Color(.63f,.69f,.75f);
         static readonly Color Accent = new Color(.94f,.76f,.39f);
-        static readonly string[] DartNames = { "01   FANG", "02   AEGIS", "03   VENOM" };
-        static readonly string[] DartEffects = { "+3 damage on hit", "+4 block on hit", "+2 poison on hit" };
+        static readonly string[] DartNames = { "01   牙のダーツ", "02   守りのダーツ", "03   毒のダーツ" };
+        static readonly string[] DartEffects = { "命中時：追加ダメージ3", "命中時：防御4を獲得", "命中時：毒2を付与" };
 
         void Awake()
         {
@@ -76,7 +76,7 @@ namespace DartsRoguelike.Mock
             var b=image.gameObject.AddComponent<UnityEngine.UI.Button>();
             b.targetGraphic=image; b.onClick.AddListener(()=>click());
             var colors=b.colors; colors.highlightedColor=new Color(.8f,.87f,1); colors.selectedColor=Color.white; b.colors=colors;
-            var t=Text("Label",image.transform,12,8,w-24,h-16,label,18,Ink);
+            var t=Text("Label",image.transform,12,8,w-24,h-16,label,16,Ink);
             t.alignment=TextAlignmentOptions.Midline;
             return b;
         }
@@ -99,12 +99,12 @@ namespace DartsRoguelike.Mock
                 es.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
             Panel("Background",canvasRoot,0,0,1440,900,new Color(.035f,.05f,.075f));
-            Text("Kicker",canvasRoot,36,22,600,24,"DARTS / ROGUELIKE     •     COMBAT LAB",16,Accent);
-            Text("Title",canvasRoot,34,51,800,56,"THE LOADED BOARD",38,Ink);
+            Text("Kicker",canvasRoot,36,22,600,24,"ダーツ × ローグライク　・　戦闘モック",16,Accent);
+            Text("Title",canvasRoot,34,51,800,56,"運命のダーツ盤",38,Ink);
             turn=Text("Turn",canvasRoot,1070,40,330,50,"",23,Accent);
             Panel("Rule",canvasRoot,36,115,1368,2,new Color(.23f,.28f,.33f));
             Panel("BoardPanel",canvasRoot,28,134,820,630,new Color(.065f,.086f,.12f));
-            Text("BoardCaption",canvasRoot,52,149,720,28,"HOLD TO FOCUS   /   RELEASE TO THROW",17,Muted);
+            Text("BoardCaption",canvasRoot,52,149,720,28,"長押しで狙う　／　離して投げる",17,Muted);
             var br=Rect("Dartboard",canvasRoot,170,210,540,540);
             br.pivot=new Vector2(.5f,.5f); br.anchoredPosition=new Vector2(440,-480);
             board=br.gameObject.AddComponent<DartBoardGraphic>(); board.Battle=this;board.material=uiMaterial;
@@ -115,7 +115,7 @@ namespace DartsRoguelike.Mock
                 var n=Text("Number"+i,canvasRoot,sx-22,sy-16,44,32,BattleModel.Numbers[i].ToString(),21,Ink);
                 n.alignment=TextAlignmentOptions.Center;
                 sx=440+Mathf.Sin(a)*205; sy=480-Mathf.Cos(a)*205;
-                sectors[i]=Text("Card"+i,canvasRoot,sx-36,sy-22,72,50,"",12,Color.white);
+                sectors[i]=Text("Card"+i,canvasRoot,sx-36,sy-22,72,56,"",12,Color.white);
                 sectors[i].alignment=TextAlignmentOptions.Center;
             }
             bull=Text("BullCard",canvasRoot,354,444,172,22,"",12,Ink);
@@ -125,27 +125,27 @@ namespace DartsRoguelike.Mock
             overlay=or.gameObject.AddComponent<DartBoardGraphic>(); overlay.Battle=this;overlay.material=uiMaterial;overlay.Overlay=true;overlay.raycastTarget=false;
 
             Panel("EnemyPanel",canvasRoot,870,134,540,210,new Color(.12f,.075f,.095f));
-            Text("EnemyName",canvasRoot,894,152,470,35,"THE PIT WARDEN",27,Ink);
+            Text("EnemyName",canvasRoot,894,152,470,42,"闘技場の番人",27,Ink);
             enemy=Text("EnemyHP",canvasRoot,894,195,470,30,"",19,Muted);
             Panel("EnemyBar",canvasRoot,894,235,488,10,new Color(.23f,.16f,.20f));
             enemyFill=Panel("EnemyFill",canvasRoot,894,235,488,10,new Color(.9f,.31f,.35f));
             intent=Text("Intents",canvasRoot,894,258,480,82,"",17,Ink);
             Panel("PlayerPanel",canvasRoot,870,360,540,145,new Color(.07f,.115f,.15f));
-            player=Text("Player",canvasRoot,894,378,490,30,"",22,Ink);
+            player=Text("Player",canvasRoot,894,378,490,36,"",22,Ink);
             Panel("HPBar",canvasRoot,894,420,488,10,new Color(.14f,.24f,.27f));
             hpFill=Panel("HPFill",canvasRoot,894,420,488,10,new Color(.29f,.74f,.59f));
             status=Text("Statuses",canvasRoot,894,444,485,50,"",16,Accent);
             hover=Text("CardDetails",canvasRoot,888,521,505,64,"",18,Ink);
             history=Text("CombatLog",canvasRoot,888,602,510,138,"",15,Muted);
-            aimHelp=Text("AimHelp",canvasRoot,52,791,780,22,"",17,Accent);
+            aimHelp=Text("AimHelp",canvasRoot,52,791,780,26,"",15,Accent);
             for(int i=0;i<3;i++)
             {
                 int index=i;
                 darts[i]=Button("Dart"+i,36+i*270,818,255,65,DartNames[i]+"\n"+DartEffects[i],()=>SelectDart(index));
             }
-            end=Button("EndTurn",870,769,260,48,"END TURN",()=>EndTurn());
-            Button("Restart",1144,769,260,48,"RESTART",Restart);
-            result=Text("Result",canvasRoot,878,836,520,45,"",23,Accent);
+            end=Button("EndTurn",870,769,260,48,"ターン終了",()=>EndTurn());
+            Button("Restart",1144,769,260,48,"再戦",Restart);
+            result=Text("Result",canvasRoot,878,836,520,45,"",20,Accent);
         }
         public void SelectDart(int index)
         {
@@ -200,7 +200,7 @@ namespace DartsRoguelike.Mock
                 if(Keyboard.current.spaceKey.wasPressedThisFrame)EndTurn();
                 if(Keyboard.current.escapeKey.wasPressedThisFrame) { Aiming=false;overlay.SetVerticesDirty(); }
             }
-            if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text="FOCUS  /  smaller circle = tighter spread   •   ESC cancels"; }
+            if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text="照準中：円が小さいほど高精度　／　Escで中止"; }
             if(Mouse.current!=null)
             {
                 Vector2 local;
@@ -210,19 +210,19 @@ namespace DartsRoguelike.Mock
                 {
                     Sector s=Model.Board[hit.Sector];
                     hover.text=BattleModel.CardNames[(int)s.Card]+"  "+BattleModel.CardValues[(int)s.Card]+" x"+hit.Multiplier+
-                        "   /   "+hit.Score+" points\n"+HazardDescription(s);
+                        "   /   "+hit.Score+"点\n"+HazardDescription(s);
                 }
-                else hover.text="Outer ring x2  /  thin middle ring x3\nBull: 25 / 50 points; card x1 / x2";
+                else hover.text="外側リング：2倍　／　中間リング：3倍\nブル：25／50点、カード効果は1／2倍";
             }
         }
         static string HazardDescription(Sector s)
         {
             switch(s.Hazard)
             {
-                case HazardKind.Mine:return "MINE: 9 damage, consumed on hit";
-                case HazardKind.Fire:return "FIRE: 5 damage, "+s.Turns+" turns remaining";
-                case HazardKind.Curse:return "CURSE: 4 damage on every hit, permanent";
-                default:return "Safe sector  /  hit rerolls this card";
+                case HazardKind.Mine:return "地雷：9ダメージ、1回で消滅";
+                case HazardKind.Fire:return "炎：5ダメージ、残り"+s.Turns+"ターン";
+                case HazardKind.Curse:return "呪い：命中ごとに4ダメージ、永続";
+                default:return "安全なマス　／　命中後にカードを再抽選";
             }
         }
         public void Refresh()
@@ -231,17 +231,17 @@ namespace DartsRoguelike.Mock
             for(int i=0;i<20;i++)
             {
                 Sector s=Model.Board[i];
-                string hazard=s.Hazard==HazardKind.None?"":s.Hazard==HazardKind.Mine?"\n! MINE":s.Hazard==HazardKind.Fire?"\n! FIRE "+s.Turns:"\n! CURSE";
+                string hazard=s.Hazard==HazardKind.None?"":s.Hazard==HazardKind.Mine?"\n! 地雷":s.Hazard==HazardKind.Fire?"\n! 炎 "+s.Turns:"\n! 呪い";
                 sectors[i].text=BattleModel.CardNames[(int)s.Card]+"\n"+BattleModel.CardValues[(int)s.Card]+hazard;
             }
             bull.text=BattleModel.CardNames[(int)Model.Board[20].Card];
-            turn.text="TURN "+Model.Turn+"    /    "+Model.Remaining+" DARTS";
-            player.text="YOU  "+Model.Hp+" / "+Model.MaxHp+"     BLOCK "+Model.Shield;
-            enemy.text="HP "+Model.EnemyHp+" / "+Model.EnemyMaxHp+"     POISON "+Model.Poison;
+            turn.text="ターン "+Model.Turn+"    /    "+Model.Remaining+"本";
+            player.text="自分の体力  "+Model.Hp+" / "+Model.MaxHp+"　防御 "+Model.Shield;
+            enemy.text="体力 "+Model.EnemyHp+" / "+Model.EnemyMaxHp+"　毒 "+Model.Poison;
             hpFill.rectTransform.sizeDelta=new Vector2(488f*Model.Hp/Model.MaxHp,10);
             enemyFill.rectTransform.sizeDelta=new Vector2(488f*Model.EnemyHp/Model.EnemyMaxHp,10);
             intent.text="";for(int i=0;i<Model.Intents.Count;i++)intent.text+=(i+1)+". "+Model.Intents[i]+"\n";
-            status.text="PANIC "+Model.Panic+"   TREMOR "+Model.Tremor+"   DRUNK "+Model.Drunk+"\nCOINS "+Model.Coins+"    SCORE "+Model.Score;
+            status.text="焦り "+Model.Panic+"　震え "+Model.Tremor+"　酔い "+Model.Drunk+"\nコイン "+Model.Coins+"　スコア "+Model.Score;
             history.text=string.Join("\n",Model.Log);
             for(int i=0;i<3;i++)
             {
@@ -249,8 +249,8 @@ namespace DartsRoguelike.Mock
                 darts[i].GetComponent<UnityEngine.UI.Image>().color=selected==i?new Color(.37f,.29f,.13f):new Color(.16f,.21f,.27f);
             }
             end.interactable=Model.Phase==BattlePhase.Player;
-            result.text=Model.Phase==BattlePhase.Victory?"VICTORY  /  "+Model.Coins+" coins":Model.Phase==BattlePhase.Defeat?"DEFEAT  /  try a different approach":"1 / 2 / 3: select   SPACE: end turn";
-            aimHelp.text=Model.Phase!=BattlePhase.Player?"Battle finished. RESTART to play again.":Model.Remaining==0?"No darts left. END TURN to resolve the enemy's intent.":"Hold left mouse on board; release when the circle is small.";
+            result.text=Model.Phase==BattlePhase.Victory?"勝利！　獲得コイン： "+Model.Coins+"枚":Model.Phase==BattlePhase.Defeat?"敗北…　狙い方を変えて再挑戦":"1／2／3：選択　Space：ターン終了";
+            aimHelp.text=Model.Phase!=BattlePhase.Player?"戦闘終了。「再戦」で最初から遊べます。":Model.Remaining==0?"残り0本。「ターン終了」で敵が行動します。":"盤面を左クリックで長押しし、円が小さいときに離そう。";
         }
     }
 }

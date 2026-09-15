@@ -30,7 +30,8 @@ namespace DartsRoguelike.Mock.Editor
             if (File.Exists(ScenePath)) throw new InvalidOperationException("Mock scene already exists. Use Mock/Open Battle Prototype.");
             Directory.CreateDirectory(Root+"/Scenes");
             AssetDatabase.Refresh();
-            var font=AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(Root+"/TextResources/Resources/Fonts & Materials/LiberationSans SDF.asset");
+            MockJapaneseFont.Build();
+            var font=AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(MockJapaneseFont.AssetPath);
             if(font==null) throw new InvalidOperationException("Run MockTextResources.Import first.");
             EnsureMaterial();
             Scene previous=SceneManager.GetActiveScene();

@@ -231,7 +231,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04d74af54dd96b14fbb65d8eb48db2eb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DartsRoguelike.Mock.MockBattle
-  font: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  font: {fileID: 11400000, guid: c7d22ea482c6c85419868a68c0f12693, type: 2}
   uiMaterial: {fileID: 2100000, guid: 70086bc0729f1fd499980440627218aa, type: 2}
   startingSeed: 731
 --- !u!4 &1706505267

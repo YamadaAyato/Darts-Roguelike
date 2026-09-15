@@ -34,12 +34,14 @@ namespace DartsRoguelike.Mock
         {
             switch (Kind)
             {
-                case IntentKind.Attack: return "ATTACK  /  " + Value + " damage";
-                case IntentKind.Heal: return "RECOVER  /  " + Value + " HP";
-                case IntentKind.Mine: return "MINE  /  sector " + BattleModel.Numbers[Value];
-                case IntentKind.Fire: return "FIRE  /  sector " + BattleModel.Numbers[Value] + " (2 turns)";
-                case IntentKind.Curse: return "CURSE  /  sector " + BattleModel.Numbers[Value] + " (permanent)";
-                default: return Kind.ToString().ToUpperInvariant() + "  /  2 turns";
+                case IntentKind.Attack: return "攻撃： " + Value + "ダメージ";
+                case IntentKind.Heal: return "回復： " + Value + "体力";
+                case IntentKind.Mine: return "地雷設置：マス " + BattleModel.Numbers[Value];
+                case IntentKind.Fire: return "炎設置：マス " + BattleModel.Numbers[Value] + "（2ターン）";
+                case IntentKind.Curse: return "呪い設置：マス " + BattleModel.Numbers[Value] + "（永続）";
+                case IntentKind.Panic: return "焦りを付与（2ターン）";
+                case IntentKind.Tremor: return "震えを付与（2ターン）";
+                default: return "酔いを付与（2ターン）";
             }
         }
     }
@@ -48,7 +50,7 @@ namespace DartsRoguelike.Mock
     public sealed class BattleModel
     {
         public static readonly int[] Numbers = { 20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5 };
-        public static readonly string[] CardNames = { "STRIKE", "GUARD", "HEAL", "POISON", "DRAIN", "COIN" };
+        public static readonly string[] CardNames = { "攻撃", "防御", "回復", "毒", "吸収", "コイン" };
         public static readonly int[] CardValues = { 8,7,5,3,4,5 };
         public readonly Sector[] Board = new Sector[21];
         public readonly bool[] Used = new bool[3];
@@ -70,7 +72,7 @@ namespace DartsRoguelike.Mock
             SetHazard(12, HazardKind.Fire, 2, -1);
             SetHazard(18, HazardKind.Curse, -1, -1);
             Plan();
-            Note("Choose a dart. Hold on the board to aim; release to throw.");
+            Note("ダーツを選び、盤面で長押しして離そう。");
         }
 
         CardKind Draw() { return (CardKind)random.Next(5); }
@@ -92,7 +94,7 @@ namespace DartsRoguelike.Mock
         {
             if (Phase != BattlePhase.Player || Remaining == 0 || dart < 0 || dart >= 3 || Used[dart]) return false;
             Used[dart] = true;
-            if (hit.Miss) { Note("MISS  /  dart spent"); return true; }
+            if (hit.Miss) { Note("ミス！　ダーツを1本消費"); return true; }
             if (hit.Sector < 0 || hit.Sector >= Board.Length || hit.Multiplier < 1 || hit.Multiplier > 3)
                 throw new ArgumentOutOfRangeException(nameof(hit));
             Score += hit.Score;
@@ -111,13 +113,13 @@ namespace DartsRoguelike.Mock
             if (dart == 0) EnemyHp -= 3;
             if (dart == 1) Shield += 4;
             if (dart == 2) Poison += 2;
-            Note((hit.Sector == 20 ? "BULL" : Numbers[hit.Sector].ToString()) + " x" + hit.Multiplier +
+            Note((hit.Sector == 20 ? "ブル" : Numbers[hit.Sector].ToString()) + " x" + hit.Multiplier +
                  "  /  " + CardNames[(int)sector.Card] + " " + amount);
             if (sector.Hazard != HazardKind.None)
             {
                 int damage = sector.Hazard == HazardKind.Mine ? 9 : sector.Hazard == HazardKind.Fire ? 5 : 4;
                 Hurt(damage);
-                Note(sector.Hazard.ToString().ToUpperInvariant() + "  /  " + damage + " damage (block applies)");
+                Note((sector.Hazard == HazardKind.Mine ? "地雷" : sector.Hazard == HazardKind.Fire ? "炎" : "呪い") + "  /  " + damage + "ダメージ（防御で軽減）");
                 if (sector.Uses > 0 && --sector.Uses == 0) sector.Hazard = HazardKind.None;
             }
             // Simultaneous death is defeat. Hazards resolve even on a killing throw.
@@ -141,7 +143,7 @@ namespace DartsRoguelike.Mock
         public bool EndTurn()
         {
             if (Phase != BattlePhase.Player) return false;
-            if (Poison > 0) { EnemyHp -= Poison; Note("POISON  /  " + Poison + " damage"); Poison = Math.Max(0, Poison - 1); }
+            if (Poison > 0) { EnemyHp -= Poison; Note("毒： " + Poison + "ダメージ"); Poison = Math.Max(0, Poison - 1); }
             if (Finish()) return true;
             // Old hazards and statuses expire before new enemy effects are installed.
             foreach (Sector s in Board)
@@ -149,7 +151,7 @@ namespace DartsRoguelike.Mock
             Panic = Math.Max(0, Panic - 1); Tremor = Math.Max(0, Tremor - 1); Drunk = Math.Max(0, Drunk - 1);
             foreach (Intent intent in Intents)
             {
-                Note("ENEMY  /  " + intent);
+                Note("敵： " + intent);
                 switch (intent.Kind)
                 {
                     case IntentKind.Attack: Hurt(intent.Value); break;
