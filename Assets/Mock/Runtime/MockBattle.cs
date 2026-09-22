@@ -21,6 +21,7 @@ namespace DartsRoguelike.Mock
         readonly TextMeshProUGUI[] sectors = new TextMeshProUGUI[20];
         readonly UnityEngine.UI.Button[] darts = new UnityEngine.UI.Button[3];
         TextMeshProUGUI player, enemy, intent, turn, result, history, hover, status, aimHelp, bull;
+        TextMeshProUGUI targetScore, targetProgress, targetReward, targetHint;
         UnityEngine.UI.Image hpFill, enemyFill;
         UnityEngine.UI.Button end;
         DartBoardGraphic board, overlay;
@@ -135,8 +136,15 @@ namespace DartsRoguelike.Mock
             Panel("HPBar",canvasRoot,894,420,488,10,new Color(.14f,.24f,.27f));
             hpFill=Panel("HPFill",canvasRoot,894,420,488,10,new Color(.29f,.74f,.59f));
             status=Text("Statuses",canvasRoot,894,444,485,50,"",16,Accent);
-            hover=Text("CardDetails",canvasRoot,888,521,505,64,"",18,Ink);
-            history=Text("CombatLog",canvasRoot,888,602,510,138,"",15,Muted);
+            Panel("TargetPanel",canvasRoot,870,514,540,126,new Color(.16f,.135f,.08f));
+            Panel("TargetAccent",canvasRoot,870,514,4,126,Accent);
+            targetScore=Text("TargetScore",canvasRoot,894,520,215,34,"",25,Accent);
+            targetProgress=Text("TargetProgress",canvasRoot,1110,524,276,30,"",16,Ink);
+            targetProgress.alignment=TextAlignmentOptions.Right;
+            targetReward=Text("TargetReward",canvasRoot,894,557,490,36,"",19,Ink);
+            targetHint=Text("TargetHint",canvasRoot,894,607,490,25,"",14,Muted);
+            hover=Text("CardDetails",canvasRoot,888,650,505,54,"",17,Ink);
+            history=Text("CombatLog",canvasRoot,888,711,510,53,"",14,Muted);
             aimHelp=Text("AimHelp",canvasRoot,52,791,780,26,"",15,Accent);
             for(int i=0;i<3;i++)
             {
@@ -187,7 +195,7 @@ namespace DartsRoguelike.Mock
             if(Model.Tremor>0) Aim+=new Vector2(Mathf.Sin(Time.unscaledTime*23),Mathf.Cos(Time.unscaledTime*29))*.027f;
             if(Model.Drunk>0) Aim+=new Vector2(Mathf.Sin(Time.unscaledTime*1.7f),Mathf.Cos(Time.unscaledTime*1.3f))*.075f;
             float wave=.5f+.5f*Mathf.Cos(elapsed*(Model.Panic>0?6.8f:4.2f));
-            Spread=.012f+wave*.18f+(Model.Tremor>0?.015f:0);
+            Spread=.045f+wave*.27f+(Model.Tremor>0?.04f:0);
         }
         void Update()
         {
@@ -241,8 +249,12 @@ namespace DartsRoguelike.Mock
             hpFill.rectTransform.sizeDelta=new Vector2(488f*Model.Hp/Model.MaxHp,10);
             enemyFill.rectTransform.sizeDelta=new Vector2(488f*Model.EnemyHp/Model.EnemyMaxHp,10);
             intent.text="";for(int i=0;i<Model.Intents.Count;i++)intent.text+=(i+1)+". "+Model.Intents[i]+"\n";
-            status.text="焦り "+Model.Panic+"　震え "+Model.Tremor+"　酔い "+Model.Drunk+"\nコイン "+Model.Coins+"　スコア "+Model.Score;
-            history.text=string.Join("\n",Model.Log);
+            status.text="焦り "+Model.Panic+"　震え "+Model.Tremor+"　酔い "+Model.Drunk+"\nコイン "+Model.Coins+"　累計スコア "+Model.Score;
+            targetScore.text="目標 "+Model.TargetScore+"点";
+            targetProgress.text="合計 "+Model.TurnScore+"点　"+(Model.TargetAchieved?"達成！":Model.TurnScore>Model.TargetScore?"超過":"あと "+(Model.TargetScore-Model.TurnScore)+"点");
+            targetReward.text="達成報酬　"+Model.TargetRewardDescription;
+            targetHint.text=Model.TargetAchieved?"発動済み。次のターンに新しい目標":Model.TurnScore>Model.TargetScore?"超過しても通常効果は有効。次のターンに再抽選":"このターンの3本以内にちょうど一致で即発動";
+            history.text=string.Join("\n",Model.Log.GetRange(0,Math.Min(3,Model.Log.Count)));
             for(int i=0;i<3;i++)
             {
                 darts[i].interactable=Model.Phase==BattlePhase.Player&&!Model.Used[i];

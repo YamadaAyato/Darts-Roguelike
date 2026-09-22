@@ -140,6 +140,39 @@ namespace DartsRoguelike.Mock.Editor
                 if(m.Phase==BattlePhase.Player)m.EndTurn();
             }
             check("complete victory path",m.Phase==BattlePhase.Victory);
+            for (int reward=0;reward<3;reward++)
+            {
+                BattleModel challenge=null;
+                for(int seed=0;seed<2000;seed++)
+                {
+                    var candidate=new BattleModel(seed);
+                    if(candidate.TargetScore==101&&candidate.TargetReward==(TargetRewardKind)reward)
+                    { challenge=candidate;break; }
+                }
+                check("101 target seed "+reward,challenge!=null);
+                foreach(int sector in new[]{2,0,12})
+                { challenge.Board[sector].Card=CardKind.Guard;challenge.Board[sector].Hazard=HazardKind.None; }
+                challenge.Hp=30;challenge.Panic=challenge.Tremor=challenge.Drunk=1;
+                challenge.Throw(new Hit(2,3,54),0);
+                challenge.Throw(new Hit(0,2,40),1);
+                check("target waits for exact score "+reward,challenge.TurnScore==94&&!challenge.TargetAchieved);
+                challenge.Throw(new Hit(12,1,7),2);
+                bool rewardApplied=reward==0?challenge.EnemyHp==87:
+                    reward==1?challenge.Hp==55:
+                    challenge.Shield==81&&challenge.Panic==0&&challenge.Tremor==0&&challenge.Drunk==0;
+                check("101 exact reward "+reward,challenge.TurnScore==101&&challenge.TargetAchieved&&rewardApplied);
+                challenge.Intents.Clear();challenge.EndTurn();
+                check("turn target resets "+reward,challenge.Turn==2&&challenge.TurnScore==0&&
+                    !challenge.TargetAchieved&&challenge.Score==101);
+            }
+            m=new BattleModel(20);
+            for(int d=0;d<3;d++)
+            {
+                m.Board[0].Card=CardKind.Guard;m.Board[0].Hazard=HazardKind.None;
+                m.Throw(new Hit(0,3,60),d);
+            }
+            check("overshoot keeps normal throw results",m.TurnScore==180&&m.Score==180&&
+                !m.TargetAchieved&&m.Phase==BattlePhase.Player);
             string summary=passed.Count+" checks passed\n"+string.Join("\n",passed);
             Debug.Log(summary);
             return summary;

@@ -7,6 +7,7 @@ namespace DartsRoguelike.Mock
     public enum HazardKind { None, Mine, Fire, Curse }
     public enum BattlePhase { Player, Victory, Defeat }
     public enum IntentKind { Attack, Heal, Mine, Fire, Curse, Panic, Tremor, Drunk }
+    public enum TargetRewardKind { Attack, Heal, Guard }
 
     [Serializable]
     public sealed class Sector
@@ -52,6 +53,7 @@ namespace DartsRoguelike.Mock
         public static readonly int[] Numbers = { 20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5 };
         public static readonly string[] CardNames = { "攻撃", "防御", "回復", "毒", "吸収", "コイン" };
         public static readonly int[] CardValues = { 8,7,5,3,4,5 };
+        public static readonly int[] TargetScores = { 61, 81, 101, 121, 141 };
         public readonly Sector[] Board = new Sector[21];
         public readonly bool[] Used = new bool[3];
         public readonly List<Intent> Intents = new List<Intent>();
@@ -59,6 +61,22 @@ namespace DartsRoguelike.Mock
         readonly Random random;
         public int Hp = 70, MaxHp = 70, EnemyHp = 135, EnemyMaxHp = 135;
         public int Shield, Poison, Coins, Score, Turn = 1, Panic, Tremor, Drunk;
+        public int TurnScore { get; private set; }
+        public int TargetScore { get; private set; }
+        public TargetRewardKind TargetReward { get; private set; }
+        public bool TargetAchieved { get; private set; }
+        public string TargetRewardDescription
+        {
+            get
+            {
+                switch (TargetReward)
+                {
+                    case TargetRewardKind.Attack: return "大攻撃：敵に45ダメージ";
+                    case TargetRewardKind.Heal: return "大回復：HPを最大25回復";
+                    default: return "鉄壁：防御35＋操作デバフ解除";
+                }
+            }
+        }
         public BattlePhase Phase = BattlePhase.Player;
         public int Remaining { get { int n = 0; foreach (bool used in Used) if (!used) n++; return n; } }
         public BattleModel(int seed)
@@ -71,11 +89,40 @@ namespace DartsRoguelike.Mock
             SetHazard(6, HazardKind.Mine, -1, 1);
             SetHazard(12, HazardKind.Fire, 2, -1);
             SetHazard(18, HazardKind.Curse, -1, -1);
+            DrawTarget();
             Plan();
             Note("ダーツを選び、盤面で長押しして離そう。");
         }
 
         CardKind Draw() { return (CardKind)random.Next(5); }
+        void DrawTarget()
+        {
+            TurnScore = 0;
+            TargetAchieved = false;
+            TargetScore = TargetScores[random.Next(TargetScores.Length)];
+            TargetReward = (TargetRewardKind)random.Next(3);
+        }
+        void AwardTarget()
+        {
+            TargetAchieved = true;
+            switch (TargetReward)
+            {
+                case TargetRewardKind.Attack:
+                    EnemyHp -= 45;
+                    Note("目標達成！ 大攻撃で45ダメージ");
+                    break;
+                case TargetRewardKind.Heal:
+                    int before = Hp;
+                    Hp = Math.Min(MaxHp, Hp + 25);
+                    Note("目標達成！ HPを" + (Hp - before) + "回復");
+                    break;
+                case TargetRewardKind.Guard:
+                    Shield += 35;
+                    Panic = Tremor = Drunk = 0;
+                    Note("目標達成！ 防御35＋操作デバフ解除");
+                    break;
+            }
+        }
         public void Note(string value) { Log.Insert(0, value); if (Log.Count > 6) Log.RemoveAt(6); }
         public void SetHazard(int sector, HazardKind kind, int turns, int uses)
         { Board[sector].Hazard = kind; Board[sector].Turns = turns; Board[sector].Uses = uses; }
@@ -98,6 +145,7 @@ namespace DartsRoguelike.Mock
             if (hit.Sector < 0 || hit.Sector >= Board.Length || hit.Multiplier < 1 || hit.Multiplier > 3)
                 throw new ArgumentOutOfRangeException(nameof(hit));
             Score += hit.Score;
+            TurnScore += hit.Score;
             Sector sector = Board[hit.Sector];
             int amount = CardValues[(int)sector.Card] * hit.Multiplier;
             switch (sector.Card)
@@ -122,6 +170,7 @@ namespace DartsRoguelike.Mock
                 Note((sector.Hazard == HazardKind.Mine ? "地雷" : sector.Hazard == HazardKind.Fire ? "炎" : "呪い") + "  /  " + damage + "ダメージ（防御で軽減）");
                 if (sector.Uses > 0 && --sector.Uses == 0) sector.Hazard = HazardKind.None;
             }
+            if (!TargetAchieved && TurnScore == TargetScore) AwardTarget();
             // Simultaneous death is defeat. Hazards resolve even on a killing throw.
             if (Finish()) return true;
             sector.Card = Draw();
@@ -168,6 +217,7 @@ namespace DartsRoguelike.Mock
             Shield = 0;
             Array.Clear(Used, 0, Used.Length);
             Turn++;
+            DrawTarget();
             Plan();
             return true;
         }
