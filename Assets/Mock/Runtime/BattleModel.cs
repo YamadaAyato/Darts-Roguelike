@@ -3,7 +3,8 @@ using System.Collections.Generic;
 
 namespace DartsRoguelike.Mock
 {
-    public enum CardKind { Strike, Guard, Heal, Poison, Drain, Coin }
+    public enum CardKind { Strike, Guard, Heal, Poison, Drain, Coin, Empty }
+    public enum BoardBand { InnerSingle, Triple, OuterSingle, Double }
     public enum HazardKind { None, Mine, Fire, Curse }
     public enum BattlePhase { Player, Victory, Defeat }
     public enum IntentKind { Attack, Heal, Mine, Fire, Curse, Panic, Tremor, Drunk }
@@ -12,7 +13,13 @@ namespace DartsRoguelike.Mock
     [Serializable]
     public sealed class Sector
     {
-        public CardKind Card;
+        public readonly CardKind[] Cards = new CardKind[4];
+        // Kept as a setup shortcut for tests: assigning it fills all four bands.
+        public CardKind Card
+        {
+            get { return Cards[0]; }
+            set { for (int i = 0; i < Cards.Length; i++) Cards[i] = value; }
+        }
         public HazardKind Hazard;
         public int Turns;
         public int Uses;
@@ -21,9 +28,16 @@ namespace DartsRoguelike.Mock
     public struct Hit
     {
         public int Sector, Multiplier, Score;
+        public BoardBand Band;
         public bool Miss;
         public Hit(int sector, int multiplier, int score, bool miss = false)
-        { Sector = sector; Multiplier = multiplier; Score = score; Miss = miss; }
+        {
+            Sector = sector; Multiplier = multiplier; Score = score; Miss = miss;
+            Band = multiplier == 3 ? BoardBand.Triple :
+                multiplier == 2 ? BoardBand.Double : BoardBand.InnerSingle;
+        }
+        public Hit(int sector, int multiplier, int score, BoardBand band)
+            : this(sector, multiplier, score) { Band = band; }
     }
 
     public struct Intent
@@ -51,8 +65,8 @@ namespace DartsRoguelike.Mock
     public sealed class BattleModel
     {
         public static readonly int[] Numbers = { 20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5 };
-        public static readonly string[] CardNames = { "攻撃", "防御", "回復", "毒", "吸収", "コイン" };
-        public static readonly int[] CardValues = { 8,7,5,3,4,5 };
+        public static readonly string[] CardNames = { "攻撃", "防御", "回復", "毒", "吸収", "コイン", "空" };
+        public static readonly int[] CardValues = { 8,7,5,3,4,5,0 };
         public static readonly int[] TargetScores = { 61, 81, 101, 121, 141 };
         public readonly Sector[] Board = new Sector[21];
         public readonly bool[] Used = new bool[3];
@@ -82,9 +96,16 @@ namespace DartsRoguelike.Mock
         public BattleModel(int seed)
         {
             random = new Random(seed);
-            for (int i = 0; i < Board.Length; i++) Board[i] = new Sector { Card = Draw() };
-            // Ensure the first board exposes every core effect; coins exist only at battle start.
-            for (int i = 0; i < 6; i++) Board[i * 3].Card = (CardKind)i;
+            for (int i = 0; i < Board.Length; i++)
+            {
+                Board[i] = new Sector();
+                for (int band = 0; band < 4; band++) Board[i].Cards[band] = DrawCell();
+            }
+            // Start with a visible T20 combination and one coin; coins never redraw.
+            Board[19].Cards[1] = CardKind.Guard;
+            Board[0].Cards[1] = CardKind.Strike;
+            Board[1].Cards[1] = CardKind.Heal;
+            Board[3].Cards[3] = CardKind.Coin;
             Board[20].Card = CardKind.Strike;
             SetHazard(6, HazardKind.Mine, -1, 1);
             SetHazard(12, HazardKind.Fire, 2, -1);
@@ -95,6 +116,7 @@ namespace DartsRoguelike.Mock
         }
 
         CardKind Draw() { return (CardKind)random.Next(5); }
+        CardKind DrawCell() { return random.Next(100) < 35 ? CardKind.Empty : Draw(); }
         void DrawTarget()
         {
             TurnScore = 0;
@@ -134,21 +156,15 @@ namespace DartsRoguelike.Mock
             if (r <= .0935) return new Hit(20,1,25);
             double degrees = Math.Atan2(x,y)*180/Math.PI;
             int index = (int)Math.Floor((degrees + 369) % 360 / 18);
-            int multiplier = r >= .94 ? 2 : (r >= .56 && r <= .62 ? 3 : 1);
-            return new Hit(index,multiplier,Numbers[index]*multiplier);
+            BoardBand band = r >= .94 ? BoardBand.Double :
+                (r >= .56 && r <= .62 ? BoardBand.Triple :
+                r > .62 ? BoardBand.OuterSingle : BoardBand.InnerSingle);
+            int multiplier = band == BoardBand.Double ? 2 : band == BoardBand.Triple ? 3 : 1;
+            return new Hit(index,multiplier,Numbers[index]*multiplier,band);
         }
-        public bool Throw(Hit hit, int dart)
+        void ApplyCard(CardKind card, int amount)
         {
-            if (Phase != BattlePhase.Player || Remaining == 0 || dart < 0 || dart >= 3 || Used[dart]) return false;
-            Used[dart] = true;
-            if (hit.Miss) { Note("ミス！　ダーツを1本消費"); return true; }
-            if (hit.Sector < 0 || hit.Sector >= Board.Length || hit.Multiplier < 1 || hit.Multiplier > 3)
-                throw new ArgumentOutOfRangeException(nameof(hit));
-            Score += hit.Score;
-            TurnScore += hit.Score;
-            Sector sector = Board[hit.Sector];
-            int amount = CardValues[(int)sector.Card] * hit.Multiplier;
-            switch (sector.Card)
+            switch (card)
             {
                 case CardKind.Strike: EnemyHp -= amount; break;
                 case CardKind.Guard: Shield += amount; break;
@@ -157,23 +173,53 @@ namespace DartsRoguelike.Mock
                 case CardKind.Drain: EnemyHp -= amount; Hp = Math.Min(MaxHp, Hp + amount); break;
                 case CardKind.Coin: Coins += amount; break;
             }
-            // Dart effects apply to every successful hit, including bull.
+        }
+        public bool Throw(Hit hit, int dart)
+        {
+            if (Phase != BattlePhase.Player || Remaining == 0 || dart < 0 || dart >= 3 || Used[dart]) return false;
+            Used[dart] = true;
+            if (hit.Miss) { Note("ミス！　ダーツを1本消費"); return true; }
+            if (hit.Sector < 0 || hit.Sector >= Board.Length || hit.Multiplier < 1 || hit.Multiplier > 3 ||
+                (hit.Sector < 20 && (int)hit.Band > 3))
+                throw new ArgumentOutOfRangeException(nameof(hit));
+            Score += hit.Score;
+            TurnScore += hit.Score;
+            int band = hit.Sector == 20 ? 0 : (int)hit.Band;
+            int cardMultiplier = hit.Sector < 20 && hit.Band == BoardBand.Triple ? 1 : hit.Multiplier;
+            int[] activated = hit.Sector < 20 && hit.Band == BoardBand.Triple
+                ? new[] { (hit.Sector + 19) % 20, hit.Sector, (hit.Sector + 1) % 20 }
+                : new[] { hit.Sector };
+            string effects = "";
+            foreach (int index in activated)
+            {
+                CardKind card = Board[index].Cards[band];
+                int amount = CardValues[(int)card] * cardMultiplier;
+                ApplyCard(card, amount);
+                if (effects.Length > 0) effects += "・";
+                effects += (index == 20 ? "ブル" : Numbers[index].ToString()) + CardNames[(int)card] +
+                    (card == CardKind.Empty ? "" : amount.ToString());
+            }
+            // The selected dart triggers once, even if a triple activates three cells.
             if (dart == 0) EnemyHp -= 3;
             if (dart == 1) Shield += 4;
             if (dart == 2) Poison += 2;
-            Note((hit.Sector == 20 ? "ブル" : Numbers[hit.Sector].ToString()) + " x" + hit.Multiplier +
-                 "  /  " + CardNames[(int)sector.Card] + " " + amount);
-            if (sector.Hazard != HazardKind.None)
+            Note((hit.Sector == 20 ? "ブル" : Numbers[hit.Sector].ToString()) + " " + hit.Score +
+                "点 / " + effects);
+            foreach (int index in activated)
             {
+                Sector sector = Board[index];
+                if (sector.Hazard == HazardKind.None) continue;
                 int damage = sector.Hazard == HazardKind.Mine ? 9 : sector.Hazard == HazardKind.Fire ? 5 : 4;
                 Hurt(damage);
-                Note((sector.Hazard == HazardKind.Mine ? "地雷" : sector.Hazard == HazardKind.Fire ? "炎" : "呪い") + "  /  " + damage + "ダメージ（防御で軽減）");
+                Note((index == 20 ? "ブル" : Numbers[index].ToString()) + "の" +
+                    (sector.Hazard == HazardKind.Mine ? "地雷" : sector.Hazard == HazardKind.Fire ? "炎" : "呪い") +
+                    " / " + damage + "ダメージ");
                 if (sector.Uses > 0 && --sector.Uses == 0) sector.Hazard = HazardKind.None;
             }
             if (!TargetAchieved && TurnScore == TargetScore) AwardTarget();
-            // Simultaneous death is defeat. Hazards resolve even on a killing throw.
+            // Resolve all activated cards and hazards before judging victory or redrawing.
             if (Finish()) return true;
-            sector.Card = Draw();
+            foreach (int index in activated) Board[index].Cards[band] = DrawCell();
             return true;
         }
         void Hurt(int amount)

@@ -4,11 +4,15 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
 
 namespace DartsRoguelike.Mock
 {
     public sealed class MockBattle : MonoBehaviour
     {
+        internal TMP_FontAsset SharedFont { get { return font; } }
+        internal Material SharedUIMaterial { get { return uiMaterial; } }
+        internal int SharedSeed { get { return startingSeed; } }
         public BattleModel Model { get; private set; }
         public bool Aiming { get; private set; }
         public Vector2 Aim { get; private set; }
@@ -18,7 +22,8 @@ namespace DartsRoguelike.Mock
         [SerializeField] TMP_FontAsset font;
         [SerializeField] Material uiMaterial;
         [SerializeField] int startingSeed = 731;
-        readonly TextMeshProUGUI[] sectors = new TextMeshProUGUI[20];
+        readonly TextMeshProUGUI[,] cells = new TextMeshProUGUI[20,4];
+        readonly TextMeshProUGUI[] hazards = new TextMeshProUGUI[20];
         readonly UnityEngine.UI.Button[] darts = new UnityEngine.UI.Button[3];
         TextMeshProUGUI player, enemy, intent, turn, result, history, hover, status, aimHelp, bull;
         TextMeshProUGUI targetScore, targetProgress, targetReward, targetHint;
@@ -35,9 +40,16 @@ namespace DartsRoguelike.Mock
         static readonly Color Accent = new Color(.94f,.76f,.39f);
         static readonly string[] DartNames = { "01   牙のダーツ", "02   守りのダーツ", "03   毒のダーツ" };
         static readonly string[] DartEffects = { "命中時：追加ダメージ3", "命中時：防御4を獲得", "命中時：毒2を付与" };
+        static readonly string[] CardSymbols = { "攻", "防", "回", "毒", "吸", "金", "" };
 
         void Awake()
         {
+            if (SceneManager.GetActiveScene().name == "MockBattle2")
+            {
+                gameObject.AddComponent<MockBattle2>();
+                enabled = false;
+                return;
+            }
             BuildUI();
             Restart();
         }
@@ -105,7 +117,8 @@ namespace DartsRoguelike.Mock
             turn=Text("Turn",canvasRoot,1070,40,330,50,"",23,Accent);
             Panel("Rule",canvasRoot,36,115,1368,2,new Color(.23f,.28f,.33f));
             Panel("BoardPanel",canvasRoot,28,134,820,630,new Color(.065f,.086f,.12f));
-            Text("BoardCaption",canvasRoot,52,149,720,28,"長押しで狙う　／　離して投げる",17,Muted);
+            Text("BoardCaption",canvasRoot,52,145,720,28,"マス別カード　／　トリプルは左右も発動　／　ダブルは2倍",17,Muted);
+            Text("BoardLegend",canvasRoot,52,224,108,180,"攻 攻撃\n防 防御\n回 回復\n毒 毒\n吸 吸収\n金 コイン\n暗色 空",14,Muted);
             var br=Rect("Dartboard",canvasRoot,170,210,540,540);
             br.pivot=new Vector2(.5f,.5f); br.anchoredPosition=new Vector2(440,-480);
             board=br.gameObject.AddComponent<DartBoardGraphic>(); board.Battle=this;board.material=uiMaterial;
@@ -115,11 +128,20 @@ namespace DartsRoguelike.Mock
                 float sx=440+Mathf.Sin(a)*292, sy=480-Mathf.Cos(a)*292;
                 var n=Text("Number"+i,canvasRoot,sx-22,sy-16,44,32,BattleModel.Numbers[i].ToString(),21,Ink);
                 n.alignment=TextAlignmentOptions.Center;
-                sx=440+Mathf.Sin(a)*205; sy=480-Mathf.Cos(a)*205;
-                sectors[i]=Text("Card"+i,canvasRoot,sx-36,sy-22,72,56,"",12,Color.white);
-                sectors[i].alignment=TextAlignmentOptions.Center;
+                float[] rings = { .35f, .59f, .78f, .97f };
+                int[] sizes = { 13, 12, 15, 12 };
+                for(int band=0;band<4;band++)
+                {
+                    sx=440+Mathf.Sin(a)*270*rings[band];
+                    sy=480-Mathf.Cos(a)*270*rings[band];
+                    cells[i,band]=Text("Cell"+i+"_"+band,canvasRoot,sx-12,sy-12,24,24,"",sizes[band],Color.white);
+                    cells[i,band].alignment=TextAlignmentOptions.Center;
+                }
+                sx=440+Mathf.Sin(a)*240; sy=480-Mathf.Cos(a)*240;
+                hazards[i]=Text("Hazard"+i,canvasRoot,sx-9,sy-10,18,20,"",14,new Color(1,.72f,.68f));
+                hazards[i].alignment=TextAlignmentOptions.Center;
             }
-            bull=Text("BullCard",canvasRoot,354,444,172,22,"",12,Ink);
+            bull=Text("BullCard",canvasRoot,430,470,20,20,"",12,Ink);
             bull.alignment=TextAlignmentOptions.Center;
             var or=Rect("AimOverlay",canvasRoot,170,210,540,540);
             or.pivot=new Vector2(.5f,.5f);or.anchoredPosition=new Vector2(440,-480);
@@ -216,11 +238,40 @@ namespace DartsRoguelike.Mock
                 Hit hit=BattleModel.Evaluate(local.x/270,local.y/270);
                 if(!hit.Miss)
                 {
-                    Sector s=Model.Board[hit.Sector];
-                    hover.text=BattleModel.CardNames[(int)s.Card]+"  "+BattleModel.CardValues[(int)s.Card]+" x"+hit.Multiplier+
-                        "   /   "+hit.Score+"点\n"+HazardDescription(s);
+                    int band=hit.Sector==20?0:(int)hit.Band;
+                    Sector current=Model.Board[hit.Sector];
+                    CardKind card=current.Cards[band];
+                    int factor=hit.Sector<20&&hit.Band==BoardBand.Triple?1:hit.Multiplier;
+                    hover.text=hit.Score+"点　"+CardDetail(card,factor);
+                    if(hit.Sector<20&&hit.Band==BoardBand.Triple)
+                    {
+                        int left=(hit.Sector+19)%20, right=(hit.Sector+1)%20;
+                        hover.text+="\n左右も発動："+BattleModel.Numbers[left]+CardDetail(Model.Board[left].Cards[1],1)+
+                            " / "+BattleModel.Numbers[right]+CardDetail(Model.Board[right].Cards[1],1);
+                        string danger="";
+                        foreach(int index in new[]{left,hit.Sector,right})
+                            if(Model.Board[index].Hazard!=HazardKind.None)
+                                danger+=BattleModel.Numbers[index]+HazardName(Model.Board[index].Hazard)+" ";
+                        if(danger.Length>0)hover.text+="\n危険："+danger;
+                    }
+                    else hover.text+="\n"+HazardDescription(current);
                 }
-                else hover.text="外側リング：2倍　／　中間リング：3倍\nブル：25／50点、カード効果は1／2倍";
+                else hover.text="暗いマスは空でも得点は入る。\nトリプルは左右も発動 / ダブルはカード2倍";
+            }
+        }
+        static string CardDetail(CardKind card,int multiplier)
+        {
+            return card==CardKind.Empty?"空マス":
+                BattleModel.CardNames[(int)card]+" "+(BattleModel.CardValues[(int)card]*multiplier);
+        }
+        static string HazardName(HazardKind hazard)
+        {
+            switch(hazard)
+            {
+                case HazardKind.Mine:return "地雷";
+                case HazardKind.Fire:return "炎";
+                case HazardKind.Curse:return "呪い";
+                default:return "";
             }
         }
         static string HazardDescription(Sector s)
@@ -238,11 +289,12 @@ namespace DartsRoguelike.Mock
             board.SetVerticesDirty();overlay.SetVerticesDirty();
             for(int i=0;i<20;i++)
             {
-                Sector s=Model.Board[i];
-                string hazard=s.Hazard==HazardKind.None?"":s.Hazard==HazardKind.Mine?"\n! 地雷":s.Hazard==HazardKind.Fire?"\n! 炎 "+s.Turns:"\n! 呪い";
-                sectors[i].text=BattleModel.CardNames[(int)s.Card]+"\n"+BattleModel.CardValues[(int)s.Card]+hazard;
+                Sector sector=Model.Board[i];
+                for(int band=0;band<4;band++)
+                    cells[i,band].text=CardSymbols[(int)sector.Cards[band]];
+                hazards[i].text=sector.Hazard==HazardKind.None?"":"!";
             }
-            bull.text=BattleModel.CardNames[(int)Model.Board[20].Card];
+            bull.text=CardSymbols[(int)Model.Board[20].Cards[0]];
             turn.text="ターン "+Model.Turn+"    /    "+Model.Remaining+"本";
             player.text="自分の体力  "+Model.Hp+" / "+Model.MaxHp+"　防御 "+Model.Shield;
             enemy.text="体力 "+Model.EnemyHp+" / "+Model.EnemyMaxHp+"　毒 "+Model.Poison;

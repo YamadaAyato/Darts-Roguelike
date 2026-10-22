@@ -80,15 +80,19 @@ namespace DartsRoguelike.Mock.Editor
             check("20 at top",BattleModel.Evaluate(0,.8f).Score==20);
             check("double 20",BattleModel.Evaluate(0,.97f).Score==40);
             check("triple 20",BattleModel.Evaluate(0,.59f).Score==60);
+            check("single bands are distinct",BattleModel.Evaluate(0,.4f).Band==BoardBand.InnerSingle&&
+                BattleModel.Evaluate(0,.8f).Band==BoardBand.OuterSingle);
             check("inner bull",BattleModel.Evaluate(0,0).Score==50);
             check("outer bull",BattleModel.Evaluate(.06f,0).Score==25);
             check("outside misses",BattleModel.Evaluate(1.1f,0).Miss);
             check("right sector 6",BattleModel.Evaluate(.8f,0).Score==6);
             var m=new BattleModel(1);
             m.Board[0].Card=CardKind.Strike;m.Board[0].Hazard=HazardKind.None;
+            m.Board[19].Cards[1]=CardKind.Empty;m.Board[1].Cards[1]=CardKind.Empty;
+            m.Board[19].Hazard=m.Board[1].Hazard=HazardKind.None;
             int hp=m.EnemyHp;
             m.Throw(new Hit(0,3,60),0);
-            check("triple card and fang",m.EnemyHp==hp-27&&m.Score==60);
+            check("triple own card and fang",m.EnemyHp==hp-11&&m.Score==60);
             check("used dart rejected",!m.Throw(new Hit(0,1,20),0)&&m.Remaining==2);
             m.Throw(new Hit(-1,0,0,true),1);
             check("miss spends dart",m.Remaining==1);
@@ -100,7 +104,7 @@ namespace DartsRoguelike.Mock.Editor
             m=new BattleModel(2);m.Board[0].Card=CardKind.Coin;m.SetHazard(0,HazardKind.Mine,-1,1);
             m.Throw(new Hit(0,2,40),0);
             check("one-use mine",m.Hp==61&&m.Board[0].Hazard==HazardKind.None);
-            check("coin from initial only",m.Coins==10&&m.Board[0].Card!=CardKind.Coin);
+            check("coin from initial only",m.Coins==10&&m.Board[0].Cards[3]!=CardKind.Coin);
             m=new BattleModel(3);m.SetHazard(0,HazardKind.Curse,-1,-1);m.Board[0].Card=CardKind.Strike;
             m.Throw(new Hit(0,1,20),0);
             check("curse survives reroll",m.Board[0].Hazard==HazardKind.Curse&&m.Hp==66);
@@ -129,13 +133,20 @@ namespace DartsRoguelike.Mock.Editor
                 for(int d=0;d<3&&m.Phase==BattlePhase.Player;d++)
                 {
                     int sector=0;int best=-999;
-                    for(int j=0;j<21;j++)
+                    for(int j=0;j<20;j++)
                     {
-                        int value=(m.Board[j].Card==CardKind.Strike?24:m.Board[j].Card==CardKind.Drain?15:m.Board[j].Card==CardKind.Poison?12:0);
-                        if(m.Board[j].Hazard!=HazardKind.None)value-=10;
+                        int value=0;
+                        for(int offset=-1;offset<=1;offset++)
+                        {
+                            int index=(j+offset+20)%20;
+                            CardKind card=m.Board[index].Cards[1];
+                            value+=card==CardKind.Strike?8:card==CardKind.Drain?7:
+                                card==CardKind.Poison?5:card==CardKind.Heal?3:card==CardKind.Guard?2:0;
+                            if(m.Board[index].Hazard!=HazardKind.None)value-=12;
+                        }
                         if(value>best){best=value;sector=j;}
                     }
-                    m.Throw(new Hit(sector,sector==20?2:3,sector==20?50:BattleModel.Numbers[sector]*3),d);
+                    m.Throw(new Hit(sector,3,BattleModel.Numbers[sector]*3),d);
                 }
                 if(m.Phase==BattlePhase.Player)m.EndTurn();
             }
@@ -152,6 +163,8 @@ namespace DartsRoguelike.Mock.Editor
                 check("101 target seed "+reward,challenge!=null);
                 foreach(int sector in new[]{2,0,12})
                 { challenge.Board[sector].Card=CardKind.Guard;challenge.Board[sector].Hazard=HazardKind.None; }
+                challenge.Board[1].Cards[1]=challenge.Board[3].Cards[1]=CardKind.Empty;
+                challenge.Board[1].Hazard=challenge.Board[3].Hazard=HazardKind.None;
                 challenge.Hp=30;challenge.Panic=challenge.Tremor=challenge.Drunk=1;
                 challenge.Throw(new Hit(2,3,54),0);
                 challenge.Throw(new Hit(0,2,40),1);
@@ -159,13 +172,15 @@ namespace DartsRoguelike.Mock.Editor
                 challenge.Throw(new Hit(12,1,7),2);
                 bool rewardApplied=reward==0?challenge.EnemyHp==87:
                     reward==1?challenge.Hp==55:
-                    challenge.Shield==81&&challenge.Panic==0&&challenge.Tremor==0&&challenge.Drunk==0;
+                    challenge.Shield==67&&challenge.Panic==0&&challenge.Tremor==0&&challenge.Drunk==0;
                 check("101 exact reward "+reward,challenge.TurnScore==101&&challenge.TargetAchieved&&rewardApplied);
                 challenge.Intents.Clear();challenge.EndTurn();
                 check("turn target resets "+reward,challenge.Turn==2&&challenge.TurnScore==0&&
                     !challenge.TargetAchieved&&challenge.Score==101);
             }
             m=new BattleModel(20);
+            m.Board[19].Cards[1]=m.Board[1].Cards[1]=CardKind.Empty;
+            m.Board[19].Hazard=m.Board[1].Hazard=HazardKind.None;
             for(int d=0;d<3;d++)
             {
                 m.Board[0].Card=CardKind.Guard;m.Board[0].Hazard=HazardKind.None;
@@ -173,6 +188,35 @@ namespace DartsRoguelike.Mock.Editor
             }
             check("overshoot keeps normal throw results",m.TurnScore==180&&m.Score==180&&
                 !m.TargetAchieved&&m.Phase==BattlePhase.Player);
+            m=new BattleModel(21);
+            m.Hp=50;
+            foreach(int index in new[]{19,0,1})m.Board[index].Hazard=HazardKind.None;
+            m.Board[19].Cards[1]=CardKind.Guard;
+            m.Board[0].Cards[1]=CardKind.Strike;
+            m.Board[1].Cards[1]=CardKind.Heal;
+            m.Throw(new Hit(0,3,60),0);
+            check("triple combines left center right",m.EnemyHp==124&&m.Hp==55&&m.Shield==7&&m.Score==60);
+            m=new BattleModel(22);
+            m.Board[19].Cards[1]=m.Board[0].Cards[1]=m.Board[1].Cards[1]=CardKind.Empty;
+            m.SetHazard(19,HazardKind.Mine,-1,1);
+            m.SetHazard(1,HazardKind.Fire,2,-1);
+            m.Board[0].Hazard=HazardKind.None;
+            m.Throw(new Hit(0,3,60),0);
+            check("triple also activates adjacent hazards",m.Hp==56&&
+                m.Board[19].Hazard==HazardKind.None&&m.Board[1].Hazard==HazardKind.Fire);
+            m=new BattleModel(23);
+            m.Board[0].Cards[3]=CardKind.Strike;m.Board[0].Hazard=HazardKind.None;
+            m.Board[19].Cards[3]=m.Board[1].Cards[3]=CardKind.Guard;
+            m.Throw(new Hit(0,2,40),0);
+            check("double doubles only its own cell",m.EnemyHp==116&&m.Shield==0);
+            m=new BattleModel(24);m.Hp=50;m.Board[0].Hazard=HazardKind.None;
+            m.Board[0].Cards[0]=CardKind.Strike;m.Board[0].Cards[2]=CardKind.Heal;
+            m.Throw(BattleModel.Evaluate(0,.4f),1);
+            m.Throw(BattleModel.Evaluate(0,.8f),2);
+            check("single bands use different cards",m.EnemyHp==127&&m.Hp==55&&m.Score==40);
+            m=new BattleModel(25);m.Board[0].Cards[0]=CardKind.Empty;m.Board[0].Hazard=HazardKind.None;
+            m.Throw(new Hit(0,1,20),1);
+            check("empty cell scores but has no card",m.Score==20&&m.EnemyHp==135&&m.Shield==4);
             string summary=passed.Count+" checks passed\n"+string.Join("\n",passed);
             Debug.Log(summary);
             return summary;

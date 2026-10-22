@@ -37,17 +37,23 @@ namespace DartsRoguelike.Mock
             }
             for (int i=0;i<20;i++)
             {
-                Color c = Palette[(int)Battle.Model.Board[i].Card];
-                Wedge(vh, i, .0935f*radius, .56f*radius, c*.65f);
-                Wedge(vh, i, .56f*radius, .62f*radius, c);
-                Wedge(vh, i, .62f*radius, .94f*radius, c*.65f);
-                Wedge(vh, i, .94f*radius, radius, c);
+                Sector sector = Battle.Model.Board[i];
+                Wedge(vh, i, .0935f*radius, .56f*radius, CellColor(sector.Cards[0],false));
+                Wedge(vh, i, .56f*radius, .62f*radius, CellColor(sector.Cards[1],true));
+                Wedge(vh, i, .62f*radius, .94f*radius, CellColor(sector.Cards[2],false));
+                Wedge(vh, i, .94f*radius, radius, CellColor(sector.Cards[3],true));
                 if (Battle.Model.Board[i].Hazard != HazardKind.None)
                     Wedge(vh,i,.88f*radius,.915f*radius,new Color(1,.25f,.23f));
             }
-            Color bull = Palette[(int)Battle.Model.Board[20].Card];
+            Color bull = CellColor(Battle.Model.Board[20].Cards[0],true);
             Disc(vh,Vector2.zero,radius*.0935f,bull*.8f);
             Disc(vh,Vector2.zero,radius*.0375f,bull);
+        }
+        static Color CellColor(CardKind card, bool bright)
+        {
+            if (card == CardKind.Empty)
+                return bright ? new Color(.14f,.17f,.21f) : new Color(.10f,.13f,.17f);
+            return Palette[(int)card] * (bright ? 1f : .68f);
         }
         static Vector2 Polar(float angle, float radius)
         { float a=angle*Mathf.Deg2Rad; return new Vector2(Mathf.Sin(a),Mathf.Cos(a))*radius; }

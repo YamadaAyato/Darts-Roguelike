@@ -16,16 +16,34 @@ namespace DartsRoguelike.Mock.Editor
         {
             if (EditorApplication.isPlaying) throw new InvalidOperationException("Stop Play Mode first.");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            if (AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetPath) != null) return;
+            string corpus = string.Join("", Directory.GetFiles("Assets/Mock/Runtime", "*.cs")
+                .OrderBy(path => path).Select(File.ReadAllText));
+            string characters = new string(corpus.Where(c => !char.IsControl(c)).Distinct().OrderBy(c => c).ToArray());
+            var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetPath);
+            if (existing != null)
+            {
+                string missingCharacters = new string(characters.Where(c => !existing.HasCharacter(c)).ToArray());
+                if (missingCharacters.Length == 0) return;
+                string unresolved;
+                existing.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+                try
+                {
+                    if (!existing.TryAddCharacters(missingCharacters, out unresolved))
+                        throw new InvalidOperationException("Missing glyphs: " + unresolved);
+                }
+                finally { existing.atlasPopulationMode = AtlasPopulationMode.Static; }
+                EditorUtility.SetDirty(existing);
+                foreach (var atlas in existing.atlasTextures) EditorUtility.SetDirty(atlas);
+                AssetDatabase.SaveAssets();
+                Debug.Log("Japanese font updated: " + missingCharacters.Length + " glyphs.");
+                return;
+            }
             var source = AssetDatabase.LoadAssetAtPath<Font>("Assets/Mock/Art/Fonts/NotoSansCJKjp-Regular.otf");
             if (source == null) throw new InvalidOperationException("Noto Sans CJK JP is missing.");
             var font = TMP_FontAsset.CreateFontAsset(source, 48, 5,
                 UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic);
             if (font == null) throw new InvalidOperationException("Cannot create Japanese font.");
             font.name = "MockJapanese";
-            string corpus = File.ReadAllText("Assets/Mock/Runtime/MockBattle.cs") +
-                File.ReadAllText("Assets/Mock/Runtime/BattleModel.cs");
-            string characters = new string(corpus.Where(c => !char.IsControl(c)).Distinct().OrderBy(c => c).ToArray());
             string missing;
             if (!font.TryAddCharacters(characters, out missing))
                 throw new InvalidOperationException("Missing glyphs: " + missing);
