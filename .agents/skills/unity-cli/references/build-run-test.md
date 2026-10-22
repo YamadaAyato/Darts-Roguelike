@@ -22,6 +22,10 @@ unity run /path/to/MyProject --allow-install -- -executeMethod Builder.Build
 unity run /path/to/MyProject --timeout 300 -- -executeMethod Builder.Build
 # Equivalent via env var:
 UNITY_RUN_TIMEOUT=300 unity run /path/to/MyProject -- -executeMethod Builder.Build
+
+# Write the Editor log to a file (also streams to the console by default)
+unity run /path/to/MyProject --log-file ./run.log -- -executeMethod Builder.Build
+unity run /path/to/MyProject -l ./run.log --no-tail -- -executeMethod Builder.Build
 ```
 
 `unity run` always launches the editor in batch mode and forwards the args after `--` to the Unity executable, then returns the editor's exit code.
@@ -38,6 +42,8 @@ Reserved-flag matching is spelling-insensitive: Unity accepts `-projectPath`, `-
 
 When `--timeout <seconds>` is set, the process receives SIGTERM at the deadline; if still alive after 2 s it receives SIGKILL. The command exits with code 6 (EXIT_COMMAND_FAILURE) on timeout.
 
+**`-l, --log-file <path>`** writes the Editor log to that path instead of Unity's default log location — the same idea `unity build` already has, now first-class on `run` too. Forwarding `-- -logFile <path>` by hand still works and is unaffected when `--log-file` is not passed, but `-logFile` becomes a reserved flag (rejected, same as `-batchmode`) the moment `--log-file` supplies a path, so the two spellings can't fight over Unity's last-wins parser. The log also streams to the console while the run happens (stdout in human format, stderr otherwise); `--no-tail` writes the file only.
+
 #### run --command — execute a registered Editor command headlessly
 
 `unity run --command <name>` runs a registered `[CliCommand]` Editor command in a single invocation: the CLI starts the Editor in batch mode, waits for the project's Pipeline server, runs the command with the arguments after `--` parsed against the command's `[CliArg]` schema (no hand-written `Environment.GetCommandLineArgs()` parsing), prints the return value, and shuts the Editor down. A running Editor with the project already open is reused (and left running) instead of spawning a second one. Requires the `com.unity.pipeline` package (`unity pipeline install` — see [integration-advanced.md](integration-advanced.md)).
@@ -48,7 +54,13 @@ unity run /path/to/MyProject --command my_command -- --count 3 --label demo
 
 # JSON result envelope (data carries the return value); bound the wait
 unity run /path/to/MyProject --command my_command --format json --timeout 120
+
+# Write the Editor log to a file — there was no route to this at all before
+# --log-file, since args after -- are the command's own and never reach Unity
+unity run /path/to/MyProject --command my_command --log-file ./run.log -- --name Ada
 ```
+
+`--log-file` (with `-l` short form) and `--no-tail` work the same way here as in plain mode: the log streams to the CLI's own stderr by default (this mode already reserves stdout for the command result), and `--no-tail` writes the file only. **It only takes effect when this invocation spawns the Editor.** If the project is already open in an Editor this command didn't start, the log destination was fixed at that Editor's launch and the CLI warns instead of leaving you watching a path nothing will write; under `--format json`/`ndjson` (where warnings don't render) the result envelope carries a `logFileApplied` boolean instead — omitted entirely when `--log-file` was never requested, `true`/`false` otherwise.
 
 **Worked example.** Given this command in the project (authoring details in [integration-advanced.md](integration-advanced.md)):
 
@@ -287,13 +299,70 @@ Options: `--mode EditMode|PlayMode`, `--filter <pattern>`, `--output <path>`, `-
 
 ---
 
+### Watch — re-run affected tests on file change
+
+`unity watch test` is a thin loop around `unity test --affected`: it runs once immediately, then re-runs on every project file change, so the inner dev loop no longer means re-typing `unity test --affected` by hand after each edit.
+
+```bash
+unity watch test /path/to/MyProject
+unity watch test . --filter "MyNamespace.MyTests"
+unity watch test . --ignore "*.log" --ignore Recordings
+```
+
+**One run at a time, always.** A run in flight is always allowed to finish; changes that arrive while it is running only mark the next run pending, and a burst of them (a multi-file save, a branch switch) coalesces into exactly one follow-up run rather than one per file. Two Editor invocations against the same project can never overlap.
+
+**Ignored by default:** `Library/`, `Temp/`, `Logs/`, `Build/`, `obj/` — matched case-insensitively wherever they appear in the project tree, and no file watcher is even attached to a top-level directory that matches, so Unity's own import churn under `Library/` never reaches the CLI. `--ignore <pattern>` (repeatable) adds more file/directory glob patterns on top of that default set; there is no flag to remove a default entry.
+
+**Ctrl-C** while idle (between runs, waiting for the next change) exits cleanly with no Editor running. Ctrl-C while a run is in flight terminates the CLI and the spawned Editor together, the same as a plain `unity test` — never an orphaned Editor process either way.
+
+**Refuses to start** under `--non-interactive`, or when a `CI` environment variable is detected, since the loop has no exit condition of its own and would otherwise hang a job indefinitely.
+
+`unity watch test` deliberately exposes a narrower flag set than `unity test` itself — no `--shard`, `--coverage`, `--retries`, `--rerun-failed`, `--affected-compare`, or `--output`/`--report-format` (the report path is fixed internally, which is also what keeps a run's own report write from re-triggering itself). Reach for `unity test --affected` directly when you need those.
+
+Options: `--mode EditMode|PlayMode`, `--filter <pattern>`, `--editor-version <version>` (env `UNITY_EDITOR_VERSION`), `-e, --editor-path <path>`, `-a, --architecture <arch>`, `--allow-install`, `--timeout <seconds>`, `--ignore <pattern>` (repeatable).
+
+`unity watch build` (re-running `unity build` on change) is a documented follow-up, not yet implemented.
+
+---
+
+### Recompile — compile check without a build
+
+`unity recompile` answers "does my code compile?" against a **running Editor**, in seconds, with no artifacts produced. It is the Unity analogue of `tsc --noEmit`. Reach for it instead of `unity build` whenever you only need to know whether the scripts are valid — a build is minutes of work to answer the same question.
+
+```bash
+unity recompile                                  # the Editor for the current project
+unity recompile --project-path /path/to/MyGame   # pick one when several are running
+unity recompile --strict                         # warnings fail too
+unity recompile --format json                    # structured diagnostics
+```
+
+It triggers an asset refresh plus script recompile, polls until compilation finishes, prints each diagnostic with its file, line, column, code and message, and sets an exit code — so it drops straight into a pre-commit hook or a CI step.
+
+**Requires a running Editor with the Pipeline package.** That is what makes it fast (the Editor is already warm) and it means no build target has to be configured. There is no batch-mode fallback: with no reachable Editor it reports which Editors it found and what to do, and exits `7`.
+
+**It cannot report errors that put the Editor into Safe Mode.** An Editor that *boots* with compile errors loads no Pipeline package, so there is nothing to ask and you get exit `7`. This command reports errors you introduce into an Editor that is **already running** — the normal edit loop, where a failed compile keeps the server alive. See the Safe Mode note in `SKILL.md` for the recovery loop.
+
+**Exit codes are the whole point for CI.** `0` compiled (or nothing needed recompiling), `6` compilation reported errors, `7` **no Editor could be reached, so whether the code compiles is unknown**. Treat `6` as terminal and `7` as worth retrying after fixing the environment — you never have to match on the message text. Several Editors running is a `6`: pick one with `--project-path`.
+
+`7` covers an Editor that is *running* but unreachable, not just a missing one — a hung Editor, or your own sandbox refusing the loopback connection. If you are a sandboxed agent, read a `7` as "ask again once the sandbox allows loopback", never as a compile failure.
+
+**Warnings do not fail by default.** `--strict` makes them fail. Warnings are read from the Editor console rather than the compile result (the Pipeline package only ever reports errors from a compile), bounded to the entries this compile produced; if the console cannot be read, the command says so on stderr rather than reporting "no warnings".
+
+Diagnostics go to **stderr** in human and `tsv` output, so stdout stays clean for parsing. `--format json` / `ndjson` carry `errors` and `warnings` arrays plus `status`, `failed` and `compilationFailed` — note `compilationFailed: true` alongside `failed: false` is normal immediately after a compile that fixed the errors, and is not a failure.
+
+Options: `--project-path <path>`, `--timeout <seconds>` (default 120), `--focus` (bring the Editor forward first; off by default because an unfocused Editor still compiles), `--strict`.
+
+---
+
 ### Build
 
 The first-class build workflow. Rule of thumb vs `unity run`: building a player → `unity build`; anything else headless → `unity run`.
 
 Pick one build strategy: a Unity 6+ Build Profile (`--profile`), a built-in desktop player build (`--target` with a desktop target, `--output-path` required), or a custom `--execute-method` (your method is responsible for the actual build, including honoring `--output-path`). Non-desktop targets need `--profile` or `--execute-method`.
 
-The build log is always written to the log file **and** streamed to stdout at the same time; pass `--no-tail` to write the file only (the tail is also suppressed by `--quiet` and `--format ndjson`).
+The build log is always written to the log file **and** streamed at the same time — to stdout, or to stderr under `--format json` so stdout holds only the result document; pass `--no-tail` to write the file only (the tail is also suppressed by `--quiet` and `--format ndjson`). The streamed copy masks the credentials the CLI passes the Editor (the `-accessToken` value, the Android keystore passwords) with `***`, as do `run` and `test` wherever they relay the Editor's log.
+
+**How the outcome is decided — do not gate CI on Unity's exit code alone.** For a built-in build (`--profile`, or `--target` without `--execute-method`) the CLI does not trust Unity's process exit code by itself: a real Editor exits `0` from a player build its own log reports as failed. When the log carries Unity's terminal verdict, that verdict decides the outcome, so a failed build exits **6** even where the Unity process exited `0`, and the provenance manifest records the failure. A log with no verdict falls back to the exit code, and an `--execute-method` build always does — your method owns the code it returns, including when it deliberately tolerates a build it reports on itself. A build that succeeds with errors still in its log reports them on stderr rather than dropping them; they also ride `editorErrors` under `--format json`.
 
 ```bash
 # Build with a custom build method
@@ -315,9 +384,12 @@ unity build /path/to/MyProject --profile "Windows Release" --output-path ./Build
 | `--target <target>` | Build target (required unless `--profile` is used). |
 | `--execute-method <method>` | Static C# method to invoke, e.g. `Builder.PerformBuild`. Optional: without it, the CLI uses Unity's built-in build. |
 | `--profile <profile>` | Build profile: a `.asset` path or a profile name in `Assets/Settings/Build Profiles` (Unity 6+; the profile defines the target). |
+| `--list-targets` | List every valid `--target` value — flagged zero-code (the built-in build works) or needing `--execute-method` / `--profile` — then exit. |
+| `--list-profiles` | List the project’s Build Profile assets (Unity 6+), then exit. |
+| `--create-profile <target>` | Create a Build Profile for a target and exit without building (Unity 6+); build with it afterwards via `--profile`. |
 | `--build-target-group <group>` | Forwarded to Unity as `-buildTargetGroup`. |
 | `-o, --output-path <path>` | Output path. With `--execute-method`, passed as `-buildOutput` (your method must honor it); otherwise the built-in build's destination (required). |
-| `-l, --log-file <path>` | Log file path. Default: `<project>/Logs/build-<target>-<timestamp>.log`. Streamed to stdout by default (see `--no-tail`). |
+| `-l, --log-file <path>` | Log file path. Default: `<project>/Logs/build-<target>-<timestamp>.log`. Streamed to stdout by default, stderr under `--format json` (see `--no-tail`). |
 | `--editor-version <version>` | Override editor version (default: from `ProjectVersion.txt`). |
 | `-e, --editor-path <path>` | Use a specific editor binary. |
 | `-a, --architecture <arch>` | Editor architecture (`x86_64` or `arm64`). |
@@ -350,20 +422,89 @@ Keystore flags are validated together. Secrets passed as command-line flags surf
 
 **Provenance manifest** — every build that reaches the editor writes a JSON manifest recording what produced it: editor version and changeset, resolved package set, target, profile, execute method, version stamp, git revision and dirty flag, CLI version, timestamps, and outcome. Failed builds get one too, with the exit code, so they stay diagnosable. It is redacted for publication — paths are project-relative, `--args`, the Android keystore flags, the editor's install location and the hostname are never written, a git package reference keeps its locator but loses any embedded credentials, and a `file:` dependency is recorded as `file:<local>` — so it can be attached to a release next to the artifact. Under `--format json` / `--format ndjson` the path is reported as `data.provenance` (omitted when no manifest was written), on failed builds as well as successful ones. The git revision is captured before the build starts, so an artifact written into the project does not make the manifest claim the build came from a dirty tree. `--provenance-path` and a relative `--output-path` both resolve against the current directory, matching what the CLI hands Unity. A manifest that cannot be written warns instead of failing the build. Schema: `apps/cli/docs/build-provenance.md`.
 
+**Output path in the result.** Under `--format json` / `--format ndjson` the resolved `--output-path` is reported as `data.outputPath`: the absolute, cwd-resolved path this build told Unity to write to, exactly as `--output-path` was supplied (never introspected out of the Editor or the Build Profile asset). It is present for every built-in build (`--profile`, an auto-discovered profile, or a legacy desktop `--target`), where `--output-path` is required, and `null` only for an `--execute-method` build invoked without `--output-path`, where the method picks its own destination the CLI has no way to learn (the same case that leaves nothing for `build run` to record; see below). Unity decides whether that path names a single file (a Windows `.exe`, a Linux binary) or a directory it writes into (a macOS `.app` bundle, a WebGL build, an Android Studio project export); the CLI reports the path it told Unity to use either way, without distinguishing the two. Like `version`, `outputPath` is serialized as `null` rather than omitted when unknown, and it carries the same value on a failed build's payload whenever one is written. This is a different value from the provenance manifest's own `build.outputPath` (above): the manifest's copy is project-relative and omitted whenever the resolved path falls outside the project, for portability and redaction; `data.outputPath` is always absolute and never redacted, since it rides the CLI's own stdout rather than a file meant to travel with the artifact.
+
 **Interrupt exit codes** — interrupting `unity build` exits with the conventional signal code (`130` for Ctrl-C / SIGINT, `143` for SIGTERM) rather than a generic `1`, so callers and CI can tell an aborted build apart from a failed one. The temporary Android keystore is scrubbed before exit.
 
-**Stall heartbeat** — a long build prints a periodic heartbeat (`Still building — 4m30s elapsed, last log output 3m10s ago`) tracking both total elapsed time and time since the Editor log last grew, so silence in the log no longer looks the same as a hang. Detection itself reads the Editor log's size directly, so it keeps working regardless of output mode — but whether the heartbeat is *printed* depends on the mode: on the human path it goes to stderr (so the streamed log stays clean) and is unaffected by `--no-tail`, but **`--quiet` suppresses it entirely** in human mode. Under `--format json`/`--format ndjson` it appears as periodic progress frames and is emitted regardless of `--quiet` — quiet only silences the human path.
+**Stall heartbeat** — a long build prints a periodic heartbeat (`Still building — 4m30s elapsed, last log output 3m10s ago`) tracking both total elapsed time and time since the Editor log last grew, so silence in the log no longer looks the same as a hang. Detection itself reads the Editor log's size directly, so it keeps working regardless of output mode — but whether the heartbeat is *printed* depends on the mode: on the human path it goes to stderr (so the streamed log stays clean) and is unaffected by `--no-tail`, but **`--quiet` suppresses it entirely** in human mode. Under `--format json`/`--format ndjson` it appears as periodic progress frames (on stderr under json, on stdout under ndjson) and is emitted regardless of `--quiet` — quiet only silences the human path.
 
 ```bash
-# With --format json, stdout includes newline-delimited JSON progress frames before the final envelope:
-unity build /path/to/MyProject --target StandaloneOSX --execute-method Builder.Build --format json
-# Output (each line is a JSON object):
+# With --format json, stdout is the result document alone; the progress frames and the streamed log go to stderr:
+unity build /path/to/MyProject --target StandaloneOSX --execute-method Builder.Build --output-path ./build/output --format json > result.json
+# stderr (each progress line is a JSON object, the Editor log lines between them):
 # {"type":"progress","command":"build","message":"Resolving project..."}
 # {"type":"progress","command":"build","message":"Resolving editor..."}
 # {"type":"progress","command":"build","message":"Starting Unity..."}
 # {"type":"progress","command":"build","message":"Unity exited (code 0)"}
-# { "success": true, "command": "build", "data": { "target": "...", "logFile": "..." } }
+# result.json:
+# { "success": true, "command": "build", "data": { "target": "...", "logFile": "...", "outputPath": "/path/to/MyProject/build/output" } }
 ```
+
+#### Discover targets, create profiles, launch the last build
+
+```bash
+# Every valid --target value, flagged zero-code (built-in build works) or needing --execute-method / --profile
+unity build /path/to/MyProject --list-targets --format json
+
+# The project’s Build Profile assets (Unity 6+) — the supported way to build partner or
+# package-provided platforms, such as Meta Quest, that are not in --target’s list
+unity build /path/to/MyProject --list-profiles --format json
+
+# Create a Build Profile for a target and exit without building (Unity 6000.0+), then build with it
+unity build /path/to/MyProject --create-profile WebGL
+unity build /path/to/MyProject --profile WebGL --output-path ./Build/web
+
+# Launch the project’s most recent recorded build without rebuilding (recorded = built with a known --output-path)
+unity build run /path/to/MyProject
+unity build run /path/to/MyProject --path ./Build/other/MyGame.exe   # a different recorded build
+```
+
+`--list-targets`, `--list-profiles` and `--create-profile` each do their job and exit — no build happens. A `--target` outside the classic catalog fails with `BUILD_INVALID_TARGET` and points at `--profile`. A successful `unity build` with a known output path — a built-in build (`--output-path` is required there) or a `--profile` / `--execute-method` build that passed `--output-path` — records that path together with the target, architecture and Editor version, and `build run` launches that recording: a desktop player natively, a WebGL build from a loopback-only local HTTP server that opens in the default browser. An `--execute-method` build without `--output-path` chooses its own destination inside the method, so it records nothing and leaves any earlier record in place; launch such a build with `build run --path <output>` instead. `build run` fails cleanly (exit 6) when no build has been recorded yet, when the recorded build’s platform cannot run on this OS, or when its output is gone.
+
+**Per-project defaults.** A committed `ProjectSettings/UnityCliConfig.json` declares `unity build` / `unity test` defaults (`build.target`, `build.outputPath`, `build.profile`, `build.timeout`, `test.mode`, `test.reportFormat`, `test.coverage`, `test.coverageOptions`, `test.timeout`) so they need not be repeated on every invocation; `unity config resolve <key> [project]` shows the resolved value and which layer supplied it. See [config-hub.md](config-hub.md).
+
+---
+
+### Unity Accelerator — shared asset-import cache
+
+The [Unity Accelerator](https://docs.unity3d.com/Manual/UnityAccelerator.html) is Unity's asset-import cache server: on import the Editor downloads a prebuilt artifact on a hash hit instead of re-importing. It pays off exactly where the CLI is used most — clean CI checkouts, ephemeral containers, branch switches, parallel agent worktrees.
+
+**Persist the endpoint once** with `unity config accelerator <host:port>` (see [config-hub.md](config-hub.md)), and `run`, `test` and `build` inject it automatically. Per-invocation control:
+
+| Flag | Description |
+|---|---|
+| `--accelerator <host:port>` | Endpoint for this invocation. Also via `UNITY_ACCELERATOR`. A bare host defaults to port `10080`. |
+| `--no-accelerator` | Ignore any configured Accelerator for this invocation. |
+
+**Both are scoped to `run`, `test` and `build`, and go after the command name.** They are deliberately not root globals: every other command would accept an endpoint it can never act on, then still fail as a usage error on a malformed value. `unity --accelerator … build` is an `unknown option` error (exit 2) — put the flag after the command instead.
+
+```bash
+# Uses the persisted endpoint automatically
+unity test /path/to/MyProject
+
+# One-shot override / opt-out
+unity build /path/to/MyProject --target StandaloneLinux64 --output-path ./Build/MyGame.x86_64 --accelerator cache.example.com:10080
+unity test /path/to/MyProject --no-accelerator
+```
+
+When an endpoint resolves, the CLI appends `-EnableCacheServer -cacheServerEndpoint <host:port>` to the Editor argv and says so (`Using Unity Accelerator at … (source: settings).`). When nothing resolves, the argv is byte-identical to a CLI without this feature. `--no-accelerator` reports that it suppressed a configured endpoint, which is deliberately distinct from the silence of a machine that has none.
+
+**`unity run`, `unity test` and `unity build` inject. `unity open` does not** — interactive opens have their own argv builder and are a known follow-up; configure the Accelerator in Editor Preferences for interactive work in the meantime.
+
+**Reserved:** `-EnableCacheServer` and `-cacheServerEndpoint` are rejected if you forward them yourself (exit 6) — the CLI manages that pair. Matching is case-insensitive and covers the `--flag` and `-flag=value` spellings.
+
+**Everything else in the family stays forwardable**, and the injected pair is placed *before* your tail so Unity's last-wins parser lets your values win: `-cacheServerEnableImportResultCaching`, `-cacheServerNamespacePrefix`, `-cacheServerEnableDownload true|false`, `-cacheServerEnableUpload true|false`, `-cacheServerWaitForConnection <ms>`, `-cacheServerDownloadBatchSize <n>`, `-cacheServerUploadExistingImports`, `-cacheServerUploadAllRevisions`, `-cacheServerUploadExistingShaderCache`, and the `-disableShaderCacheRemote*` / `-disableTextureCacheRemote*` families (each with `…Download` / `…Upload` sub-variants).
+
+```bash
+unity test /path/to/MyProject -- \
+  -cacheServerEnableImportResultCaching \
+  -cacheServerNamespacePrefix "ci-6000.0" \
+  -cacheServerWaitForConnection 10000
+```
+
+**Import result caching is disabled by default from Unity 6.5 in new projects.** On a new 6.5+ project, connecting to an Accelerator is not by itself enough to get import-result reuse — pass `-cacheServerEnableImportResultCaching` or enable it in the project.
+
+**A configured endpoint can still be ignored.** Every `-cacheServer*` argument overrides *Editor Preferences*, not Project Settings; `ProjectSettings/EditorSettings.asset`'s `m_CacheServerMode` decides whether preferences are consulted at all (`0` = Use global settings, `1` = Enabled, `2` = Disabled). A project on mode `2` ignores the injected flags, and the CLI emits a warning (never a failure — the run proceeds). Mode `1` is not warned about: whether a project-pinned endpoint beats an injected one is unmeasured, and a false warning would be worse than none. Diagnose with `unity diagnose accelerator` (see [diagnostics-maintenance.md](diagnostics-maintenance.md)); full explanation in `apps/cli/docs/accelerator.md`.
 
 ---
 
