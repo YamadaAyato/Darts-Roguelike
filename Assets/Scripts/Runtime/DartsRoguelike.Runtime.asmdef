@@ -2,6 +2,7 @@
     "name": "DartsRoguelike.Runtime",
     "rootNamespace": "DartsRoguelike",
     "references": [
+        "GUID:301073a405353fc4f953e597b88ca824",
         "GUID:75469ad4d38634e559750d17036d5f7c"
     ],
     "includePlatforms": [],
