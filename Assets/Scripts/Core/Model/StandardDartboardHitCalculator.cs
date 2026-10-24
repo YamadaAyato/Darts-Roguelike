@@ -6,6 +6,8 @@ namespace DartsRoguelike.Core.Model
     {
         #region 定数
         #region 正規化された半径の割合の定数
+        // 分かりやすいように、実寸大の中心からダブル外周までの距離を1とした場合の割合で定義する
+        // 計算で定数をわかりやすいようにしたいため、実寸大の中心からダブル外周までの距離を定数として定義する
 
         // <summary> インナーブルの外周半径割合 </summary>
         public const float INNER_BULL_RADIUS = 6.35f / BOARD_RADIUS_MM;
@@ -17,7 +19,7 @@ namespace DartsRoguelike.Core.Model
         public const float INNER_SINGLE_RADIUS = 99.4f / BOARD_RADIUS_MM;
 
         // <summary> アウタートリプルの外周半径割合 </summary>
-        public const float TRIPLE_RADIUS = 99.4f / BOARD_RADIUS_MM;
+        public const float TRIPLE_RADIUS = 107.4f / BOARD_RADIUS_MM;
 
         // <summary> インナーダブルの外周半径割合 </summary>
         public const float OUTER_SINGLE_RADIUS = 162.0f / BOARD_RADIUS_MM;
@@ -121,13 +123,13 @@ namespace DartsRoguelike.Core.Model
         /// <returns> ダーツボードの番号 </returns>
         private static int GetSectorNumber(Vector2 normalizedPos)
         {
-            // 正規化された座標から角度を計算
+            // 上が0度、右が90度、下が180度、左が270度の座標系で角度を計算し、時計回りに変換する
             float clockwiseAngle =
                 Mathf.Repeat(Mathf.Atan2(normalizedPos.x, normalizedPos.y) *
                 Mathf.Rad2Deg, FULL_ANGLE);
 
             int sectorIndex =
-                Mathf.FloorToInt((clockwiseAngle / HALF_SECTOR_ANGLE) / SECTOR_ANGLE) %
+                Mathf.FloorToInt((clockwiseAngle + HALF_SECTOR_ANGLE) / SECTOR_ANGLE) %
                 NUMBERS_CLOCKWISE_FROM_TOP.Length;
 
             return NUMBERS_CLOCKWISE_FROM_TOP[sectorIndex];
