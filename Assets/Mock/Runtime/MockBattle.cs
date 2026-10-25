@@ -19,9 +19,36 @@ namespace DartsRoguelike.Mock
         public float Spread { get; private set; }
         public bool HasHit { get; private set; }
         public Vector2 LastHit { get; private set; }
+
+        /// <summary> Mock3で中心点を決めている段階かどうか。 </summary>
+        public bool IsThreeStageDrawing { get { return _threeStageAim != null && _threeStageAim.IsDrawing; } }
+
+        /// <summary> Mock3で着弾範囲を決めている段階かどうか。 </summary>
+        public bool IsThreeStageSelectingSpread { get { return _threeStageAim != null && _threeStageAim.IsSelectingSpread; } }
+
+        /// <summary> Mock3で固定した大まかな狙いの中心。 </summary>
+        public Vector2 CoarseAim { get { return _threeStageAim == null ? Vector2.zero : _threeStageAim.CoarseAim; } }
+
+        /// <summary> Mock3で表示する大まかな狙い範囲の半径。 </summary>
+        public float CoarseAimRadius { get { return _threeStageAim == null ? 0f : _threeStageAim.CoarseRadius; } }
+
+        /// <summary> Mock3の照準を表示できる状態かどうか。 </summary>
+        public bool ShowsThreeStageAim
+        {
+            get
+            {
+                return _threeStageAim != null && Model != null && Model.Phase == BattlePhase.Player &&
+                    Model.Remaining > 0 && !Model.Used[selected] &&
+                    (_threeStageAim.IsInProgress || _isPointerOverBoard);
+            }
+        }
+
         [SerializeField] TMP_FontAsset font;
         [SerializeField] Material uiMaterial;
         [SerializeField] int startingSeed = 731;
+        [SerializeField, Tooltip("Mock3で固定する大まかな狙い範囲の半径。")] private float _coarseAimRadius = .5f;
+        [SerializeField, Tooltip("Mock3で中心点が通常時に揺れる幅。")] private float _drawSwayRadius = .16f;
+        [SerializeField, Tooltip("Mock3で震え状態の中心点へ追加する揺れ幅。")] private float _tremorSwayRadius = .06f;
         readonly TextMeshProUGUI[,] cells = new TextMeshProUGUI[20,4];
         readonly TextMeshProUGUI[] hazards = new TextMeshProUGUI[20];
         readonly UnityEngine.UI.Button[] darts = new UnityEngine.UI.Button[3];
@@ -34,6 +61,8 @@ namespace DartsRoguelike.Mock
         int selected;
         float started;
         System.Random random;
+        private MockThreeStageAim _threeStageAim;
+        private bool _isPointerOverBoard;
 
         static readonly Color Ink = new Color(.92f,.94f,.95f);
         static readonly Color Muted = new Color(.63f,.69f,.75f);
@@ -50,6 +79,8 @@ namespace DartsRoguelike.Mock
                 enabled = false;
                 return;
             }
+            if (SceneManager.GetActiveScene().name == "MockBattle3")
+                _threeStageAim = new MockThreeStageAim(_coarseAimRadius, _drawSwayRadius, _tremorSwayRadius);
             BuildUI();
             Restart();
         }
@@ -58,6 +89,11 @@ namespace DartsRoguelike.Mock
             Model = new BattleModel(startingSeed);
             random = new System.Random(startingSeed + 1);
             selected=0; Aiming=false; HasHit=false;
+            if (_threeStageAim != null)
+            {
+                _threeStageAim.Reset();
+                PrepareMock3FirstTurnIntent();
+            }
             Refresh();
         }
         RectTransform Rect(string name, Transform parent, float x,float y,float w,float h)
@@ -185,10 +221,16 @@ namespace DartsRoguelike.Mock
         public void BeginAim()
         {
             if (Model.Phase != BattlePhase.Player || Model.Remaining==0 || Model.Used[selected]) return;
+            if (_threeStageAim != null)
+            {
+                AdvanceThreeStageAim();
+                return;
+            }
             Aiming=true;started=Time.unscaledTime;UpdateAim();
         }
         public void ReleaseAim()
         {
+            if (_threeStageAim != null) return;
             if(!Aiming) return;
             UpdateAim();
             Aiming=false;
@@ -205,8 +247,8 @@ namespace DartsRoguelike.Mock
             if(Aiming) return;
             Model.EndTurn(); selected=0;HasHit=false;Refresh();
         }
-        void OnApplicationFocus(bool focused) { if(!focused) { Aiming=false;if(overlay!=null)overlay.SetVerticesDirty(); } }
-        void OnDisable() { Aiming=false; }
+        void OnApplicationFocus(bool focused) { if(!focused) CancelAim(); }
+        void OnDisable() { CancelAim(); }
         void UpdateAim()
         {
             if(Mouse.current==null) { Aiming=false;return; }
@@ -228,9 +270,15 @@ namespace DartsRoguelike.Mock
                 if(Keyboard.current.digit2Key.wasPressedThisFrame)SelectDart(1);
                 if(Keyboard.current.digit3Key.wasPressedThisFrame)SelectDart(2);
                 if(Keyboard.current.spaceKey.wasPressedThisFrame)EndTurn();
-                if(Keyboard.current.escapeKey.wasPressedThisFrame) { Aiming=false;overlay.SetVerticesDirty(); }
+                if(Keyboard.current.escapeKey.wasPressedThisFrame) CancelAim();
             }
-            if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text="照準中：円が小さいほど高精度　／　Escで中止"; }
+            if (_threeStageAim != null)
+            {
+                UpdateThreeStageAim();
+                overlay.SetVerticesDirty();
+                aimHelp.text = GetThreeStageAimHelp();
+            }
+            else if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text="照準中：円が小さいほど高精度　／　Escで中止"; }
             if(Mouse.current!=null)
             {
                 Vector2 local;
@@ -257,6 +305,136 @@ namespace DartsRoguelike.Mock
                     else hover.text+="\n"+HazardDescription(current);
                 }
                 else hover.text="暗いマスは空でも得点は入る。\nトリプルは左右も発動 / ダブルはカード2倍";
+            }
+        }
+        /// <summary>
+        ///     Mock3の現在の照準を確定し、投擲まで進んだ場合は戦闘へ着弾を渡す。
+        /// </summary>
+        private void AdvanceThreeStageAim()
+        {
+            Vector2 pointerPosition;
+            if (!TryGetBoardPointer(out pointerPosition)) return;
+
+            bool shouldThrow = _threeStageAim.Advance(
+                pointerPosition,
+                Time.unscaledTime,
+                Model.Tremor > 0,
+                Model.Drunk > 0,
+                Model.Panic > 0);
+            ApplyThreeStageAim();
+            Aiming = _threeStageAim.IsInProgress;
+
+            if (!shouldThrow)
+            {
+                overlay.SetVerticesDirty();
+                return;
+            }
+
+            float angle = (float)random.NextDouble() * Mathf.PI * 2f;
+            float distance = Mathf.Sqrt((float)random.NextDouble()) * Spread;
+            LastHit = Aim + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * distance;
+            HasHit = true;
+            Model.Throw(BattleModel.Evaluate(LastHit.x, LastHit.y), selected);
+            for (int i = 0; i < 3; i++)
+            {
+                if (!Model.Used[i])
+                {
+                    selected = i;
+                    break;
+                }
+            }
+
+            _threeStageAim.Reset();
+            Aiming = false;
+            Refresh();
+        }
+
+        /// <summary>
+        ///     Mock3の照準表示を現在のマウス位置と状態異常から更新する。
+        /// </summary>
+        private void UpdateThreeStageAim()
+        {
+            Vector2 pointerPosition;
+            if (!TryGetBoardPointer(out pointerPosition)) return;
+
+            _isPointerOverBoard = pointerPosition.sqrMagnitude <= 1f;
+            if (!_threeStageAim.IsInProgress && !_isPointerOverBoard) return;
+
+            _threeStageAim.Update(
+                pointerPosition,
+                Time.unscaledTime,
+                Model.Tremor > 0,
+                Model.Drunk > 0,
+                Model.Panic > 0);
+            ApplyThreeStageAim();
+        }
+
+        /// <summary>
+        ///     3段階照準の計算結果を既存の盤面表示へ反映する。
+        /// </summary>
+        private void ApplyThreeStageAim()
+        {
+            Aim = _threeStageAim.Aim;
+            Spread = _threeStageAim.Spread;
+        }
+
+        /// <summary>
+        ///     マウス位置を盤面半径1の正規化座標へ変換する。
+        /// </summary>
+        private bool TryGetBoardPointer(out Vector2 pointerPosition)
+        {
+            pointerPosition = Vector2.zero;
+            if (Mouse.current == null) return false;
+
+            Vector2 local;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                board.rectTransform,
+                Mouse.current.position.ReadValue(),
+                null,
+                out local);
+            pointerPosition = local / (board.rectTransform.rect.width * .5f);
+            return true;
+        }
+
+        /// <summary>
+        ///     進行中の1投を取り消して最初の照準段階へ戻す。
+        /// </summary>
+        private void CancelAim()
+        {
+            Aiming = false;
+            _isPointerOverBoard = false;
+            if (_threeStageAim != null) _threeStageAim.Reset();
+            if (overlay != null) overlay.SetVerticesDirty();
+        }
+
+        /// <summary>
+        ///     Mock3の現在の入力段階に対応する操作説明を取得する。
+        /// </summary>
+        private string GetThreeStageAimHelp()
+        {
+            if (Model.Phase != BattlePhase.Player)
+                return "戦闘終了。「再戦」で最初から遊べます。";
+            if (Model.Remaining == 0)
+                return "残り0本。「ターン終了」で敵が行動します。";
+            if (_threeStageAim.IsDrawing)
+                return "2 / 3 引く：大きな円の中で揺れる中心を左クリックで確定　／　Escで中止";
+            if (_threeStageAim.IsSelectingSpread)
+                return "3 / 3 投げる：金色の円が小さい瞬間を左クリックして投擲　／　Escで中止";
+            return "1 / 3 狙う：マウスで大きな円を動かし、左クリックで範囲を確定";
+        }
+
+        /// <summary>
+        ///     Mock3で通常時と震え時を続けて比較できるよう、初手の状態異常を震えへ変更する。
+        /// </summary>
+        private void PrepareMock3FirstTurnIntent()
+        {
+            for (int i = 0; i < Model.Intents.Count; i++)
+            {
+                if (Model.Intents[i].Kind == IntentKind.Panic)
+                {
+                    Model.Intents[i] = new Intent(IntentKind.Tremor, 2);
+                    return;
+                }
             }
         }
         static string CardDetail(CardKind card,int multiplier)
@@ -314,7 +492,7 @@ namespace DartsRoguelike.Mock
             }
             end.interactable=Model.Phase==BattlePhase.Player;
             result.text=Model.Phase==BattlePhase.Victory?"勝利！　獲得コイン： "+Model.Coins+"枚":Model.Phase==BattlePhase.Defeat?"敗北…　狙い方を変えて再挑戦":"1／2／3：選択　Space：ターン終了";
-            aimHelp.text=Model.Phase!=BattlePhase.Player?"戦闘終了。「再戦」で最初から遊べます。":Model.Remaining==0?"残り0本。「ターン終了」で敵が行動します。":"盤面を左クリックで長押しし、円が小さいときに離そう。";
+            aimHelp.text=_threeStageAim!=null?GetThreeStageAimHelp():Model.Phase!=BattlePhase.Player?"戦闘終了。「再戦」で最初から遊べます。":Model.Remaining==0?"残り0本。「ターン終了」で敵が行動します。":"盤面を左クリックで長押しし、円が小さいときに離そう。";
         }
     }
 }

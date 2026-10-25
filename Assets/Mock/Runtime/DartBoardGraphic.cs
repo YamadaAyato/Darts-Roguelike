@@ -21,7 +21,22 @@ namespace DartsRoguelike.Mock
             float radius = rectTransform.rect.width * .5f;
             if (Overlay)
             {
-                if (Battle.Aiming)
+                if (Battle.ShowsThreeStageAim)
+                {
+                    Ring(vh, Battle.CoarseAim * radius, Battle.CoarseAimRadius * radius, 3, new Color(.34f,.74f,.92f));
+                    if (Battle.IsThreeStageDrawing)
+                    {
+                        Ring(vh, Battle.Aim * radius, 7, 2, Color.white);
+                        Quad(vh, Battle.Aim * radius + new Vector2(-1,-10), Battle.Aim * radius + new Vector2(1,10), Color.white);
+                        Quad(vh, Battle.Aim * radius + new Vector2(-10,-1), Battle.Aim * radius + new Vector2(10,1), Color.white);
+                    }
+                    else if (Battle.IsThreeStageSelectingSpread)
+                    {
+                        Ring(vh, Battle.Aim * radius, Battle.Spread * radius, 2, new Color(1,.86f,.47f));
+                        Ring(vh, Battle.Aim * radius, 5, 1.5f, Color.white);
+                    }
+                }
+                else if (Battle.Aiming)
                 {
                     Ring(vh, Battle.Aim * radius, Battle.Spread * radius, 2, new Color(1,.86f,.47f));
                     Ring(vh, Battle.Aim * radius, 5, 1.5f, Color.white);
