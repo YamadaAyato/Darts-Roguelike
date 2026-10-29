@@ -54,7 +54,7 @@ namespace DartsRoguelike.Core.Model
         /// <summary>
         ///     設定値が有限値であることを検証する
         /// </summary>
-        /// <param name="value"> 検証する値 </param>
+        /// <param name="value"> 検証する値 </param>　
         /// <param name="parameterName"> パラメータ名 </param>
         private static void ValidateFiniteValue(float value, string parameterName)
         {
