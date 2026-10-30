@@ -15,7 +15,7 @@ namespace DartsRoguelike.Core.Model
             _parameters = parameters;
         }
 
-        /// <summary> 標準中かどうか </summary>
+        /// <summary> 照準中かどうか </summary>
         public bool IsAiming { get; private set; }
 
         /// <summary> 照準位置 </summary>
@@ -104,7 +104,7 @@ namespace DartsRoguelike.Core.Model
         }
 
         /// <summary>
-        ///     投摘せずに照準状態を終了します
+        ///     投擲せずに照準状態を終了します
         /// </summary>
         public void CancelAim()
         {
@@ -135,7 +135,7 @@ namespace DartsRoguelike.Core.Model
             if (float.IsNaN(aimPosition.x) || float.IsInfinity(aimPosition.x) ||
                float.IsNaN(aimPosition.y) || float.IsInfinity(aimPosition.y))
             {
-                throw new System.ArgumentException("照準位置は有効な数値でなければなりません。");
+                throw new System.ArgumentException(nameof(aimPosition) + "は有効な数値でなければなりません。");
             }
         }
     }
