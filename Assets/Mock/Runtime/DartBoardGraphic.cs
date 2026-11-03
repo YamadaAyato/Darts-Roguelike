@@ -12,8 +12,8 @@ namespace DartsRoguelike.Mock
             new Color(.91f,.31f,.29f), new Color(.22f,.59f,.85f), new Color(.27f,.73f,.53f),
             new Color(.65f,.42f,.84f), new Color(.89f,.57f,.29f), new Color(.93f,.78f,.35f)
         };
-        public void OnPointerDown(PointerEventData e) { if (!Overlay && e.button == PointerEventData.InputButton.Left) Battle.BeginAim(); }
-        public void OnPointerUp(PointerEventData e) { if (!Overlay && e.button == PointerEventData.InputButton.Left) Battle.ReleaseAim(); }
+        public void OnPointerDown(PointerEventData e) { if (!Overlay && e.button == PointerEventData.InputButton.Left) Battle.HandleBoardPointerDown(); }
+        public void OnPointerUp(PointerEventData e) { if (!Overlay && e.button == PointerEventData.InputButton.Left) Battle.HandleBoardPointerUp(); }
         protected override void OnPopulateMesh(UnityEngine.UI.VertexHelper vh)
         {
             vh.Clear();

@@ -279,6 +279,10 @@ MonoBehaviour:
   font: {fileID: 11400000, guid: c7d22ea482c6c85419868a68c0f12693, type: 2}
   uiMaterial: {fileID: 2100000, guid: 70086bc0729f1fd499980440627218aa, type: 2}
   startingSeed: 731
+  _clickToThrow: 1
+  _coarseAimRadius: 0.5
+  _drawSwayRadius: 0.16
+  _tremorSwayRadius: 0.06
 --- !u!4 &1706505267
 Transform:
   m_ObjectHideFlags: 0

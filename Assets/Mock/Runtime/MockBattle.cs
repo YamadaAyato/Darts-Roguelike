@@ -20,6 +20,9 @@ namespace DartsRoguelike.Mock
         public bool HasHit { get; private set; }
         public Vector2 LastHit { get; private set; }
 
+        /// <summary> 2回のクリックで照準開始と投擲を行うかどうか </summary>
+        public bool UsesClickToThrow => _threeStageAim == null && _clickToThrow;
+
         /// <summary> Mock3で中心点を決めている段階かどうか。 </summary>
         public bool IsThreeStageDrawing { get { return _threeStageAim != null && _threeStageAim.IsDrawing; } }
 
@@ -46,6 +49,8 @@ namespace DartsRoguelike.Mock
         [SerializeField] TMP_FontAsset font;
         [SerializeField] Material uiMaterial;
         [SerializeField] int startingSeed = 731;
+        [SerializeField, Tooltip("1回目のクリックで照準開始、2回目で投擲する比較用設定")]
+        private bool _clickToThrow;
         [SerializeField, Tooltip("Mock3で固定する大まかな狙い範囲の半径。")] private float _coarseAimRadius = .5f;
         [SerializeField, Tooltip("Mock3で中心点が通常時に揺れる幅。")] private float _drawSwayRadius = .16f;
         [SerializeField, Tooltip("Mock3で震え状態の中心点へ追加する揺れ幅。")] private float _tremorSwayRadius = .06f;
@@ -56,6 +61,7 @@ namespace DartsRoguelike.Mock
         TextMeshProUGUI targetScore, targetProgress, targetReward, targetHint;
         UnityEngine.UI.Image hpFill, enemyFill;
         UnityEngine.UI.Button end;
+        private UnityEngine.UI.Button _throwModeButton;
         DartBoardGraphic board, overlay;
         RectTransform canvasRoot;
         int selected;
@@ -151,6 +157,11 @@ namespace DartsRoguelike.Mock
             Text("Kicker",canvasRoot,36,22,600,24,"ダーツ × ローグライク　・　戦闘モック",16,Accent);
             Text("Title",canvasRoot,34,51,800,56,"運命のダーツ盤",38,Ink);
             turn=Text("Turn",canvasRoot,1070,40,330,50,"",23,Accent);
+            if (_threeStageAim == null)
+            {
+                _throwModeButton = Button("ThrowMode", 870, 82, 534, 28, "",
+                    () => SetClickToThrow(!UsesClickToThrow));
+            }
             Panel("Rule",canvasRoot,36,115,1368,2,new Color(.23f,.28f,.33f));
             Panel("BoardPanel",canvasRoot,28,134,820,630,new Color(.065f,.086f,.12f));
             Text("BoardCaption",canvasRoot,52,145,720,28,"マス別カード　／　トリプルは左右も発動　／　ダブルは2倍",17,Muted);
@@ -228,6 +239,47 @@ namespace DartsRoguelike.Mock
             }
             Aiming=true;started=Time.unscaledTime;UpdateAim();
         }
+
+        /// <summary>
+        ///     盤面の押下を現在の操作方式に応じて処理する
+        /// </summary>
+        public void HandleBoardPointerDown()
+        {
+            if (UsesClickToThrow && Aiming)
+            {
+                ReleaseAim();
+                return;
+            }
+
+            BeginAim();
+        }
+
+        /// <summary>
+        ///     長押し方式の場合だけボタン解放で投擲する
+        /// </summary>
+        public void HandleBoardPointerUp()
+        {
+            if (!UsesClickToThrow)
+            {
+                ReleaseAim();
+            }
+        }
+
+        /// <summary>
+        ///     比較する操作方式を切り替え、進行中の照準を中止する
+        /// </summary>
+        public void SetClickToThrow(bool enabled)
+        {
+            if (_threeStageAim != null)
+            {
+                return;
+            }
+
+            CancelAim();
+            _clickToThrow = enabled;
+            Refresh();
+        }
+
         public void ReleaseAim()
         {
             if (_threeStageAim != null) return;
@@ -278,7 +330,11 @@ namespace DartsRoguelike.Mock
                 overlay.SetVerticesDirty();
                 aimHelp.text = GetThreeStageAimHelp();
             }
-            else if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text="照準中：円が小さいほど高精度　／　Escで中止"; }
+            else if(Aiming) { UpdateAim();overlay.SetVerticesDirty();aimHelp.text=GetAimHelp(); }
+            if (UsesClickToThrow && Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+            {
+                CancelAim();
+            }
             if(Mouse.current!=null)
             {
                 Vector2 local;
@@ -405,6 +461,39 @@ namespace DartsRoguelike.Mock
             _isPointerOverBoard = false;
             if (_threeStageAim != null) _threeStageAim.Reset();
             if (overlay != null) overlay.SetVerticesDirty();
+            if (aimHelp != null && Model != null) aimHelp.text = GetAimHelp();
+        }
+
+        /// <summary>
+        ///     現在の操作方式と照準状態に対応する説明を取得する
+        /// </summary>
+        private string GetAimHelp()
+        {
+            if (_threeStageAim != null)
+            {
+                return GetThreeStageAimHelp();
+            }
+
+            if (Model.Phase != BattlePhase.Player)
+            {
+                return "戦闘終了。「再戦」で最初から遊べます";
+            }
+
+            if (Model.Remaining == 0)
+            {
+                return "残り0本。「ターン終了」で敵が行動します";
+            }
+
+            if (UsesClickToThrow)
+            {
+                return Aiming
+                    ? "照準中：もう一度左クリックで投擲　／　右クリック・Escで中止"
+                    : "盤面を左クリックで照準開始 → 円が小さいときにもう一度左クリック";
+            }
+
+            return Aiming
+                ? "照準中：円が小さいときにボタンを離して投擲　／　Escで中止"
+                : "盤面を左クリックで長押しし、円が小さいときに離そう";
         }
 
         /// <summary>
@@ -492,7 +581,13 @@ namespace DartsRoguelike.Mock
             }
             end.interactable=Model.Phase==BattlePhase.Player;
             result.text=Model.Phase==BattlePhase.Victory?"勝利！　獲得コイン： "+Model.Coins+"枚":Model.Phase==BattlePhase.Defeat?"敗北…　狙い方を変えて再挑戦":"1／2／3：選択　Space：ターン終了";
-            aimHelp.text=_threeStageAim!=null?GetThreeStageAimHelp():Model.Phase!=BattlePhase.Player?"戦闘終了。「再戦」で最初から遊べます。":Model.Remaining==0?"残り0本。「ターン終了」で敵が行動します。":"盤面を左クリックで長押しし、円が小さいときに離そう。";
+            aimHelp.text = GetAimHelp();
+            if (_throwModeButton != null)
+            {
+                _throwModeButton.GetComponentInChildren<TextMeshProUGUI>().text = UsesClickToThrow
+                    ? "操作：2クリック式　［押すと長押し式へ切替］"
+                    : "操作：長押し式　［押すと2クリック式へ切替］";
+            }
         }
     }
 }
