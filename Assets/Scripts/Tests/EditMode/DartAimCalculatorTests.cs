@@ -6,7 +6,7 @@ namespace DartsRoguelike.Tests.EditMode
     /// <summary>
     ///     照準円の半径と周期を検証する。
     /// </summary>
-    public sealed class DartAimCalculatorTests
+    public class DartAimCalculatorTests
     {
         private const float RADIUS_TOLERANCE = 0.0001f;
 

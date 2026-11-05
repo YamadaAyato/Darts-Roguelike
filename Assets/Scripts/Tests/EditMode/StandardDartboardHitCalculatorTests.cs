@@ -7,7 +7,7 @@ namespace DartsRoguelike.Tests.EditMode
     /// <summary>
     ///     StandardDartboardHitCalculatorの盤面判定を検証する。
     /// </summary>
-    public sealed class StandardDartboardHitCalculatorTests
+    public class StandardDartboardHitCalculatorTests
     {
         private const float STANDARD_TRIPLE_INNER_RADIUS = 0.58470588f;
         private const float STANDARD_TRIPLE_OUTER_RADIUS = 0.63176471f;

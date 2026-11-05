@@ -7,7 +7,7 @@ namespace DartsRoguelike.Tests.EditMode
     /// <summary>
     ///     DartThrowCalculatorの着弾計算を検証する。
     /// </summary>
-    public sealed class DartThrowCalculatorTests
+    public class DartThrowCalculatorTests
     {
         private const float POSITION_TOLERANCE = 0.0001f;
 

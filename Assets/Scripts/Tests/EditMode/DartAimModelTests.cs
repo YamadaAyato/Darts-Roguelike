@@ -8,7 +8,7 @@ namespace DartsRoguelike.Tests.EditMode
     /// <summary>
     ///     照準状態の遷移と投擲コマンドの生成を検証する。
     /// </summary>
-    public sealed class DartAimModelTests
+    public class DartAimModelTests
     {
         private const float RADIUS_TOLERANCE = 0.0001f;
 
