@@ -50,6 +50,22 @@ namespace DartsRoguelike.Core.Model
         public bool AreAllEnemiesDefeated => FindFirstLivingEnemy() == null;
 
         /// <summary>
+        ///     左からの位置を指定して生存敵を探す
+        /// </summary>
+        /// <param name="enemyIndex"> 左端を0とする敵の位置 </param>
+        /// <returns> 指定先が範囲外または撃破済みの場合はnull </returns>
+        public EnemyModel? FindLivingEnemy(int enemyIndex)
+        {
+            if (enemyIndex < 0 || enemyIndex >= Enemies.Count)
+            {
+                return null;
+            }
+
+            EnemyModel enemy = Enemies[enemyIndex];
+            return enemy.IsAlive ? enemy : null;
+        }
+
+        /// <summary>
         ///     左端の生存敵を探す
         /// </summary>
         /// <returns> 生存敵がいない場合はnull </returns>

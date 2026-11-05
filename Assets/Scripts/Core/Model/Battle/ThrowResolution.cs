@@ -1,5 +1,8 @@
 #nullable enable
 
+using System;
+using System.Collections.Generic;
+
 namespace DartsRoguelike.Core.Model
 {
     /// <summary>
@@ -8,27 +11,21 @@ namespace DartsRoguelike.Core.Model
     public readonly struct ThrowResolution
     {
         internal ThrowResolution(
-            DartThrowResult throwResult, EnemyModel? target, int enemyHealthLost, bool wasEnemyDefeated)
+            DartThrowResult throwResult, IReadOnlyList<EnemyHitResult>? enemyHits = null)
         {
             ThrowResult = throwResult;
-            Target = target;
-            EnemyHealthLost = enemyHealthLost;
-            WasEnemyDefeated = wasEnemyDefeated;
+            _enemyHits = enemyHits;
         }
 
         /// <summary> 解決に使った着弾結果 </summary>
         public DartThrowResult ThrowResult { get; }
 
-        /// <summary> 攻撃した敵。攻撃が発生しなかった場合はnull </summary>
-        public EnemyModel? Target { get; }
-
         /// <summary> この一投で攻撃が発生したかどうか </summary>
-        public bool DidAttack => EnemyHealthLost > 0;
+        public bool DidAttack => EnemyHits.Count > 0;
 
-        /// <summary> この一投で実際に減った敵のHP </summary>
-        public int EnemyHealthLost { get; }
+        /// <summary> 左からの表示順に並んだ敵ごとの攻撃結果 </summary>
+        public IReadOnlyList<EnemyHitResult> EnemyHits => _enemyHits ?? Array.Empty<EnemyHitResult>();
 
-        /// <summary> この一投で敵を撃破したかどうか </summary>
-        public bool WasEnemyDefeated { get; }
+        private readonly IReadOnlyList<EnemyHitResult>? _enemyHits;
     }
 }
