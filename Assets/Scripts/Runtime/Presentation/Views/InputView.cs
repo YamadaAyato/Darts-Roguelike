@@ -15,7 +15,7 @@ namespace DartsRoguelike.Presentation
         /// <summary> キャンセルが要求されたときに発火するイベント </summary>
         public event Action OnCancelRequested;
 
-        /// <summary> ポインターの位置を取得する </summary>
+        /// <summary> ポインターの画面座標 </summary>
         public Vector2 PointPosition => _pointAction.action.ReadValue<Vector2>();
 
         [SerializeField, Tooltip("ポインターの位置を取得するInputActionReference")]

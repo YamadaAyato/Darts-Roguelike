@@ -42,13 +42,13 @@ namespace DartsRoguelike.Core.Model
             CycleDuration = cycleDuration;
         }
 
-        /// <summary> 標準円が最も小さいときの半径を取得する </summary>
+        /// <summary> 照準円の最小半径 </summary>
         public float MinimumSpreadRadius { get; }
 
-        /// <summary> 標準円が最も大きいときの半径を取得する </summary>
+        /// <summary> 照準円の最大半径 </summary>
         public float MaximumSpreadRadius { get; }
 
-        /// <summary> 照準円が一度縮小して拡大するまでの秒数を取得する </summary>
+        /// <summary> 照準円が一度縮小して拡大するまでの秒数 </summary>
         public float CycleDuration { get; }
 
         /// <summary>

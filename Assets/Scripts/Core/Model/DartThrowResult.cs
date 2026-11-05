@@ -13,10 +13,10 @@ namespace DartsRoguelike.Core.Model
             HitResult = hitResult;
         }
 
-        /// <summary> ダーツの着弾位置を盤面の正規化座標で取得する </summary>
+        /// <summary> ダーツの着弾位置の正規化座標 </summary>
         public Vector2 LandingPosition { get; }
 
-        /// <summary> ダーツの着弾位置の盤面判定結果を取得する </summary>
+        /// <summary> 着弾位置の盤面判定結果 </summary>
         public DartboardHitResult HitResult { get; }
     }
 }

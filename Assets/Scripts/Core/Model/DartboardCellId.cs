@@ -22,7 +22,7 @@ namespace DartsRoguelike.Core.Model
         /// <summary> 1から20までの番号を表す整数値。ブルと盤外では 0 を返す </summary>
         public int Number { get; }
 
-        /// <summary> リングの種類を取得する </summary>
+        /// <summary> リングの種類 </summary>
         public DartboardRing Ring { get; }
 
         public bool Equals(DartboardCellId other)

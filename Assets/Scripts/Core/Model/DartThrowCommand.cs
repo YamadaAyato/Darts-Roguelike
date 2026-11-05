@@ -29,16 +29,16 @@ namespace DartsRoguelike.Core.Model
             RandomDistanceRate = randomDistanceRate;
         }
 
-        /// <summary> 狙った位置の盤面の正規化座標で取得する </summary>
+        /// <summary> 狙った位置の盤面上の正規化座標 </summary>
         public Vector2 AimPosition { get; }
 
-        /// <summary> 着弾半径を盤面の正規化座標で取得する </summary>
+        /// <summary> 盤面半径を1とした着弾半径 </summary>
         public float SpreadRadius { get; }
 
-        /// <summary> 着弾角度の割合を取得する </summary>
+        /// <summary> 着弾角度の割合 </summary>
         public float RandomAngleRate { get; }
 
-        /// <summary> 中心からの着弾距離の割合を取得する </summary>
+        /// <summary> 中心からの着弾距離の割合 </summary>
         public float RandomDistanceRate { get; }
 
         /// <summary>
