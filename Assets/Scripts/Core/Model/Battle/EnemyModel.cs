@@ -20,5 +20,8 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> 敵ターンの通常攻撃の基礎ダメージ </summary>
         public int AttackDamage { get; }
+
+        /// <summary> 次の敵ターンに予定している通常攻撃のダメージ </summary>
+        public int NextAttackDamage => IsAlive ? AttackDamage : 0;
     }
 }

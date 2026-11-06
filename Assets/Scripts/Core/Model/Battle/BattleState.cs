@@ -110,9 +110,10 @@ namespace DartsRoguelike.Core.Model
 
             foreach (EnemyModel enemy in Enemies)
             {
-                if (enemy.IsAlive)
+                int attackDamage = enemy.NextAttackDamage;
+                if (attackDamage > 0)
                 {
-                    DamageResolver.Resolve(Player, enemy.AttackDamage);
+                    DamageResolver.Resolve(Player, attackDamage);
                     if (!Player.IsAlive)
                     {
                         break;

@@ -63,6 +63,8 @@ namespace DartsRoguelike.Tests.EditMode
             var state = new BattleState(
                 new BoardState(), new[] { defeatedEnemy, livingEnemy }, throwsPerTurn: 1, player: player);
 
+            Assert.That(defeatedEnemy.NextAttackDamage, Is.Zero);
+            Assert.That(livingEnemy.NextAttackDamage, Is.EqualTo(4));
             Assert.That(state.TryResolveEnemyTurn(), Is.False);
             Assert.That(state.TryConsumeThrow(), Is.True);
             Assert.That(state.TryResolveEnemyTurn(), Is.True);

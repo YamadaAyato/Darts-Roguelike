@@ -39,7 +39,7 @@ namespace DartsRoguelike.Presentation
             var enemies = new[] { new EnemyModel(8, attackDamage: 3), new EnemyModel(16, attackDamage: 4) };
             _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
             _victoryLabel.SetActive(false);
-            RefreshEnemyHealth();
+            RefreshEnemyStatus();
             RefreshTurnLabel();
         }
 
@@ -61,6 +61,7 @@ namespace DartsRoguelike.Presentation
             if (Keyboard.current?.enterKey.wasPressedThisFrame == true && _state.TryResolveEnemyTurn())
             {
                 _inputBinding.enabled = _state.Player.IsAlive;
+                RefreshEnemyStatus();
                 RefreshTurnLabel();
             }
         }
@@ -75,7 +76,7 @@ namespace DartsRoguelike.Presentation
             ThrowResolution resolution = ThrowEffectResolver.Resolve(result, _state);
             if (resolution.DidAttack)
             {
-                RefreshEnemyHealth();
+                RefreshEnemyStatus();
             }
 
             if (_state.AreAllEnemiesDefeated)
@@ -110,14 +111,24 @@ namespace DartsRoguelike.Presentation
         }
 
         /// <summary>
-        ///     敵の現在HPと最大HPを表示する
+        ///     敵のHPと次の攻撃予告を表示する
         /// </summary>
-        private void RefreshEnemyHealth()
+        private void RefreshEnemyStatus()
         {
-            EnemyModel leftEnemy = _state.Enemies[0];
-            EnemyModel rightEnemy = _state.Enemies[1];
-            _leftEnemyHealth.text = $"HP  {leftEnemy.CurrentHealth} / {leftEnemy.MaxHealth}";
-            _rightEnemyHealth.text = $"HP  {rightEnemy.CurrentHealth} / {rightEnemy.MaxHealth}";
+            _leftEnemyHealth.text = FormatEnemyStatus(_state.Enemies[0]);
+            _rightEnemyHealth.text = FormatEnemyStatus(_state.Enemies[1]);
+        }
+
+        /// <summary>
+        ///     戦闘中の敵はHPに続けて次の攻撃予定を表示する
+        /// </summary>
+        private string FormatEnemyStatus(EnemyModel enemy)
+        {
+            string health = $"HP {enemy.CurrentHealth}/{enemy.MaxHealth}";
+            int nextAttackDamage = enemy.NextAttackDamage;
+            return _state.Player.IsAlive && nextAttackDamage > 0
+                ? $"{health}  |  ATK {nextAttackDamage}"
+                : health;
         }
     }
 }
