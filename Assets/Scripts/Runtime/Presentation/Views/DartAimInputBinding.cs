@@ -1,4 +1,5 @@
 using System;
+using DartsRoguelike.Core.Model;
 using UnityEngine;
 
 namespace DartsRoguelike.Presentation
@@ -8,6 +9,9 @@ namespace DartsRoguelike.Presentation
     /// </summary>
     public class DartAimInputBinding : MonoBehaviour
     {
+        /// <summary> 投擲が確定したときの着弾結果 </summary>
+        public event Action<DartThrowResult> OnThrowResolved;
+
         [SerializeField, Tooltip("入力を受け取るビュー")]
         private InputView _inputView;
 
@@ -121,9 +125,10 @@ namespace DartsRoguelike.Presentation
 
             if (throwRequested)
             {
-                _presenter.Release(
+                DartThrowResult result = _presenter.Release(
                     UnityEngine.Random.value,
                     UnityEngine.Random.value);
+                OnThrowResolved?.Invoke(result);
             }
         }
 

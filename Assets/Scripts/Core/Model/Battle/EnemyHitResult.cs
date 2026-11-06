@@ -5,10 +5,11 @@ namespace DartsRoguelike.Core.Model
     /// </summary>
     public readonly struct EnemyHitResult
     {
-        internal EnemyHitResult(EnemyModel target, int healthLost, bool wasDefeated)
+        internal EnemyHitResult(EnemyModel target, int healthLost, int shieldLost, bool wasDefeated)
         {
             Target = target;
             HealthLost = healthLost;
+            ShieldLost = shieldLost;
             WasDefeated = wasDefeated;
         }
 
@@ -17,6 +18,12 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> 実際に減ったHP </summary>
         public int HealthLost { get; }
+
+        /// <summary> 実際に減ったシールド </summary>
+        public int ShieldLost { get; }
+
+        /// <summary> 実際に減ったシールドとHPの合計 </summary>
+        public int EffectiveDamage => ShieldLost + HealthLost;
 
         /// <summary> この攻撃で撃破されたかどうか </summary>
         public bool WasDefeated { get; }

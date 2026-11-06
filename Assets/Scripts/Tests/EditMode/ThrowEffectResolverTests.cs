@@ -109,5 +109,35 @@ namespace DartsRoguelike.Tests.EditMode
             Assert.That(rightEnemy.CurrentHealth, Is.EqualTo(6));
             Assert.That(state.AreAllEnemiesDefeated, Is.False);
         }
+
+        /// <summary>
+        ///     シールドを先に減らし、オーバーキル分を除いた有効ダメージを記録することを検証する
+        /// </summary>
+        [TestCase(5, 0, 4, false)]
+        [TestCase(1, 2, 1, true)]
+        public void Resolve_ShieldedEnemy_RecordsEffectiveDamage(
+            int initialShield, int expectedHealthLost, int expectedShieldLost, bool expectedDefeat)
+        {
+            var enemy = new EnemyModel(2, initialShield);
+            var board = new BoardState();
+            var cell = new DartboardCellId(20, DartboardRing.Double);
+            board.SetCard(cell, new BoardCard(2));
+
+            var state = new BattleState(board, new[] { enemy });
+            var hit = new DartboardHitResult(cell, 40);
+            var throwResult = new DartThrowResult(Vector2.up, hit);
+
+            ThrowResolution result = ThrowEffectResolver.Resolve(throwResult, state);
+
+            Assert.That(result.DidAttack, Is.True);
+            Assert.That(result.EnemyHits, Has.Count.EqualTo(1));
+            EnemyHitResult enemyHit = result.EnemyHits[0];
+            Assert.That(enemyHit.HealthLost, Is.EqualTo(expectedHealthLost));
+            Assert.That(enemyHit.ShieldLost, Is.EqualTo(expectedShieldLost));
+            Assert.That(enemyHit.EffectiveDamage, Is.EqualTo(expectedHealthLost + expectedShieldLost));
+            Assert.That(enemyHit.WasDefeated, Is.EqualTo(expectedDefeat));
+            Assert.That(enemy.CurrentHealth, Is.EqualTo(2 - expectedHealthLost));
+            Assert.That(enemy.CurrentShield, Is.EqualTo(initialShield - expectedShieldLost));
+        }
     }
 }

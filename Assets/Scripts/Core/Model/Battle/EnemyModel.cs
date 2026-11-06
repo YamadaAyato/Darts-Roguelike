@@ -3,11 +3,11 @@ using System;
 namespace DartsRoguelike.Core.Model
 {
     /// <summary>
-    ///     戦闘中の敵のHPを管理する
+    ///     戦闘中の敵のHPとシールドを管理する
     /// </summary>
     public class EnemyModel
     {
-        public EnemyModel(int maxHealth)
+        public EnemyModel(int maxHealth, int initialShield = 0)
         {
             if (maxHealth <= 0)
             {
@@ -15,8 +15,15 @@ namespace DartsRoguelike.Core.Model
                     nameof(maxHealth), maxHealth, "最大HPは1以上にしてください");
             }
 
+            if (initialShield < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(initialShield), initialShield, "初期シールドは0以上にしてください");
+            }
+
             MaxHealth = maxHealth;
             CurrentHealth = maxHealth;
+            CurrentShield = initialShield;
         }
 
         /// <summary> 最大HP </summary>
@@ -24,6 +31,9 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> 現在HP </summary>
         public int CurrentHealth { get; private set; }
+
+        /// <summary> 現在のシールド </summary>
+        public int CurrentShield { get; private set; }
 
         /// <summary> 生存しているかどうか </summary>
         public bool IsAlive => CurrentHealth > 0;
@@ -44,6 +54,17 @@ namespace DartsRoguelike.Core.Model
             int healthLost = Math.Min(CurrentHealth, damage);
             CurrentHealth -= healthLost;
             return healthLost;
+        }
+
+        /// <summary>
+        ///     シールドでダメージを吸収する
+        /// </summary>
+        /// <returns> 実際に減ったシールド </returns>
+        internal int AbsorbDamage(int damage)
+        {
+            int shieldLost = Math.Min(CurrentShield, damage);
+            CurrentShield -= shieldLost;
+            return shieldLost;
         }
     }
 }

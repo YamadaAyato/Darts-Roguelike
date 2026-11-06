@@ -27,21 +27,22 @@ namespace DartsRoguelike.Core.Model
                 return new ThrowResolution(throwResult);
             }
 
+            return ResolveBoardCard(throwResult, state, preferredEnemyIndex);
+        }
+
+        /// <summary>
+        ///     盤面カードの段階で着弾マスの攻撃を解決する
+        /// </summary>
+        private static ThrowResolution ResolveBoardCard(
+            DartThrowResult throwResult, BattleState state, int? preferredEnemyIndex)
+        {
             BoardCard? card = state.Board.GetCard(throwResult.HitResult.Cell);
             if (card == null)
             {
                 return new ThrowResolution(throwResult);
             }
 
-            int multiplier = throwResult.HitResult.Ring switch
-            {
-                DartboardRing.Double => 2,
-                DartboardRing.Triple => 3,
-                _ => 1
-            };
-
-            // 倍率計算で整数があふれても、適用するダメージが負にならないようにする
-            int damage = (int)Math.Min((long)card.BaseDamage * multiplier, int.MaxValue);
+            DartboardRing ring = throwResult.HitResult.Ring;
             if (card.Scope == BoardCard.TargetScope.AllEnemies)
             {
                 var hits = new List<EnemyHitResult>();
@@ -49,7 +50,7 @@ namespace DartsRoguelike.Core.Model
                 {
                     if (enemy.IsAlive)
                     {
-                        hits.Add(ApplyDamage(enemy, damage));
+                        hits.Add(DamageResolver.Resolve(enemy, card.BaseDamage, ring));
                     }
                 }
 
@@ -67,17 +68,8 @@ namespace DartsRoguelike.Core.Model
                 return new ThrowResolution(throwResult);
             }
 
-            return new ThrowResolution(
-                throwResult, Array.AsReadOnly(new[] { ApplyDamage(target, damage) }));
-        }
-
-        /// <summary>
-        ///     対象の敵にダメージを適用し、その場で撃破結果を記録する
-        /// </summary>
-        private static EnemyHitResult ApplyDamage(EnemyModel target, int damage)
-        {
-            int healthLost = target.TakeDamage(damage);
-            return new EnemyHitResult(target, healthLost, !target.IsAlive);
+            EnemyHitResult hit = DamageResolver.Resolve(target, card.BaseDamage, ring);
+            return new ThrowResolution(throwResult, Array.AsReadOnly(new[] { hit }));
         }
     }
 }
