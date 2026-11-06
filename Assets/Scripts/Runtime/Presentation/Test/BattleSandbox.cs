@@ -12,14 +12,16 @@ namespace DartsRoguelike.Presentation
         [SerializeField] private DartAimInputBinding _inputBinding;
         [SerializeField] private UnityEngine.UI.Text _leftEnemyHealth;
         [SerializeField] private UnityEngine.UI.Text _rightEnemyHealth;
+        [SerializeField] private GameObject _victoryLabel;
 
         private BattleState _state;
 
         private void Awake()
         {
-            if (_inputBinding == null || _leftEnemyHealth == null || _rightEnemyHealth == null)
+            if (_inputBinding == null || _leftEnemyHealth == null || _rightEnemyHealth == null ||
+                _victoryLabel == null)
             {
-                Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力と敵HP表示を設定してください", this);
+                Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力、敵HP表示、勝利表示を設定してください", this);
                 enabled = false;
                 return;
             }
@@ -30,6 +32,7 @@ namespace DartsRoguelike.Presentation
                 new BoardCard(4, BoardCard.TargetScope.AllEnemies));
 
             _state = new BattleState(board, new[] { new EnemyModel(8), new EnemyModel(16) });
+            _victoryLabel.SetActive(false);
             RefreshEnemyHealth();
         }
 
@@ -52,6 +55,12 @@ namespace DartsRoguelike.Presentation
             if (resolution.DidAttack)
             {
                 RefreshEnemyHealth();
+            }
+
+            if (_state.AreAllEnemiesDefeated)
+            {
+                _inputBinding.enabled = false;
+                _victoryLabel.SetActive(true);
             }
         }
 
