@@ -4380,7 +4380,10 @@ MonoBehaviour:
   _rightEnemyHealth: {fileID: 2053039431}
   _victoryLabel: {fileID: 870556454}
   _turnLabel: {fileID: 646738780}
+  _singleAttackLabel: {fileID: 1986520916}
+  _allAttackLabel: {fileID: 778804347}
   _throwsPerTurn: 3
+  _cardDrawSeed: 1
 --- !u!1 &1376441509
 GameObject:
   m_ObjectHideFlags: 0

@@ -9,38 +9,50 @@ namespace DartsRoguelike.Presentation
     /// </summary>
     public class BattleSandbox : MonoBehaviour
     {
+        private static readonly DartboardCellId OUTER_20_CELL = new DartboardCellId(20, DartboardRing.OuterSingle);
+        private static readonly DartboardCellId OUTER_6_CELL = new DartboardCellId(6, DartboardRing.OuterSingle);
+
         [Header("参照")]
         [SerializeField] private DartAimInputBinding _inputBinding;
         [SerializeField] private UnityEngine.UI.Text _leftEnemyHealth;
         [SerializeField] private UnityEngine.UI.Text _rightEnemyHealth;
         [SerializeField] private GameObject _victoryLabel;
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
+        [SerializeField] private UnityEngine.UI.Text _singleAttackLabel;
+        [SerializeField] private UnityEngine.UI.Text _allAttackLabel;
 
         [SerializeField, Min(1), Tooltip("プレイヤーターン開始時の投擲本数")]
         private int _throwsPerTurn = 3;
+
+        [SerializeField, Tooltip("カード再抽選の乱数シード")]
+        private int _cardDrawSeed = 1;
 
         private BattleState _state;
 
         private void Awake()
         {
             if (_inputBinding == null || _leftEnemyHealth == null || _rightEnemyHealth == null ||
-                _victoryLabel == null || _turnLabel == null)
+                _victoryLabel == null || _turnLabel == null ||
+                _singleAttackLabel == null || _allAttackLabel == null)
             {
                 Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力と戦闘の表示を設定してください", this);
                 enabled = false;
                 return;
             }
 
-            var board = new BoardState();
-            board.SetCard(new DartboardCellId(20, DartboardRing.OuterSingle), new BoardCard(8));
-            board.SetCard(new DartboardCellId(6, DartboardRing.OuterSingle),
-                new BoardCard(4, BoardCard.TargetScope.AllEnemies));
+            var singleAttack = new BoardCard(8);
+            var allAttack = new BoardCard(4, BoardCard.TargetScope.AllEnemies);
+            var deck = new BoardCardDeck(new[] { singleAttack, allAttack, null }, _cardDrawSeed);
+            var board = new BoardState(deck);
+            board.SetCard(OUTER_20_CELL, singleAttack);
+            board.SetCard(OUTER_6_CELL, allAttack);
 
             var enemies = new[] { new EnemyModel(8, attackDamage: 3), new EnemyModel(16, attackDamage: 4) };
             _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
             _victoryLabel.SetActive(false);
             RefreshEnemyStatus();
             RefreshTurnLabel();
+            RefreshCardLabels();
         }
 
         private void OnEnable()
@@ -63,6 +75,7 @@ namespace DartsRoguelike.Presentation
                 _inputBinding.enabled = _state.Player.IsAlive;
                 RefreshEnemyStatus();
                 RefreshTurnLabel();
+                RefreshCardLabels();
             }
         }
 
@@ -90,6 +103,7 @@ namespace DartsRoguelike.Presentation
             }
 
             RefreshTurnLabel();
+            RefreshCardLabels();
         }
 
         /// <summary>
@@ -129,6 +143,36 @@ namespace DartsRoguelike.Presentation
             return _state.Player.IsAlive && nextAttackDamage > 0
                 ? $"{health}  |  ATK {nextAttackDamage}"
                 : health;
+        }
+
+        /// <summary>
+        ///     凡例にカードの配置と使用済み状態を反映する
+        /// </summary>
+        private void RefreshCardLabels()
+        {
+            _singleAttackLabel.text = FormatCardLabel(OUTER_20_CELL);
+            _allAttackLabel.text = FormatCardLabel(OUTER_6_CELL);
+        }
+
+        /// <summary>
+        ///     マスの番号と現在のカード効果を凡例に表示する
+        /// </summary>
+        private string FormatCardLabel(DartboardCellId cell)
+        {
+            string number = $"{cell.Number,2}";
+            if (_state.Board.IsCardUsed(cell))
+            {
+                return $"{number}   USED";
+            }
+
+            BoardCard card = _state.Board.GetCard(cell);
+            if (card == null)
+            {
+                return $"{number}   Empty";
+            }
+
+            string scope = card.Scope == BoardCard.TargetScope.AllEnemies ? "All" : "Single";
+            return $"{number}   {scope} ATK {card.BaseDamage}";
         }
     }
 }

@@ -78,6 +78,34 @@ namespace DartsRoguelike.Tests.EditMode
         }
 
         /// <summary>
+        ///     次のターン開始時に使用済みマスだけが別のカードまたは通常マスになることを検証する
+        /// </summary>
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Resolve_UsedCard_RerollsOnlyTheUsedCell(bool drawCard)
+        {
+            var usedCard = new BoardCard(4);
+            BoardCard replacement = drawCard ? new BoardCard(2) : null;
+            var deck = new BoardCardDeck(new[] { usedCard, replacement }, seed: 1);
+            var board = new BoardState(deck);
+            var usedCell = new DartboardCellId(20, DartboardRing.OuterSingle);
+            var unusedCell = new DartboardCellId(6, DartboardRing.OuterSingle);
+            board.SetCard(usedCell, usedCard);
+            board.SetCard(unusedCell, usedCard);
+            var state = new BattleState(board, new[] { new EnemyModel(20) }, throwsPerTurn: 1);
+            var hit = new DartboardHitResult(usedCell, 20);
+            var throwResult = new DartThrowResult(Vector2.up, hit);
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(throwResult, state).DidAttack, Is.True);
+            Assert.That(board.GetCard(usedCell), Is.SameAs(usedCard));
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(board.IsCardUsed(usedCell), Is.False);
+            Assert.That(board.GetCard(usedCell), Is.EqualTo(replacement));
+            Assert.That(board.GetCard(unusedCell), Is.SameAs(usedCard));
+        }
+
+        /// <summary>
         ///     指定先が生存中なら優先し、撃破済みや範囲外なら左端の生存敵を狙うことを検証する
         /// </summary>
         [TestCase(1, true, 1)]

@@ -110,7 +110,7 @@ namespace DartsRoguelike.Core.Model
             if (Player.IsAlive)
             {
                 RemainingThrows = _throwsPerTurn;
-                Board.ResetUsedCards();
+                Board.RefreshUsedCards();
             }
 
             return true;

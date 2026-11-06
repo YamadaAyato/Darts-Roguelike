@@ -10,9 +10,15 @@ namespace DartsRoguelike.Core.Model
     /// </summary>
     public class BoardState
     {
+        public BoardState(BoardCardDeck? cardDeck = null)
+        {
+            _cardDeck = cardDeck;
+        }
+
         private readonly Dictionary<DartboardCellId, BoardCard> _cards =
             new Dictionary<DartboardCellId, BoardCard>();
-        private readonly HashSet<DartboardCellId> _usedCards = new HashSet<DartboardCellId>();
+        private readonly List<DartboardCellId> _usedCards = new List<DartboardCellId>();
+        private readonly BoardCardDeck? _cardDeck;
 
         /// <summary>
         ///     指定したマスへカードを配置し、すでにある場合は上書きする
@@ -51,14 +57,36 @@ namespace DartsRoguelike.Core.Model
         internal BoardCard? UseCard(DartboardCellId cell)
         {
             BoardCard? card = GetCard(cell);
-            return card != null && _usedCards.Add(cell) ? card : null;
+            if (card == null || _usedCards.Contains(cell))
+            {
+                return null;
+            }
+
+            _usedCards.Add(cell);
+            return card;
         }
 
         /// <summary>
-        ///     次のプレイヤーターン用に使用済み状態を解除する
+        ///     使用済みマスを発動順に再抽選し、次のプレイヤーターンに備える
         /// </summary>
-        internal void ResetUsedCards()
+        internal void RefreshUsedCards()
         {
+            if (_cardDeck != null)
+            {
+                foreach (DartboardCellId cell in _usedCards)
+                {
+                    BoardCard? replacement = _cardDeck.DrawReplacement(_cards[cell]);
+                    if (replacement == null)
+                    {
+                        _cards.Remove(cell);
+                    }
+                    else
+                    {
+                        _cards[cell] = replacement;
+                    }
+                }
+            }
+
             _usedCards.Clear();
         }
     }
