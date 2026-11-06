@@ -14,12 +14,11 @@ namespace DartsRoguelike.Presentation
 
         [Header("参照")]
         [SerializeField] private DartAimInputBinding _inputBinding;
-        [SerializeField, Tooltip("敵の編成順に並べたステータス表示")]
-        private EnemyStatusView[] _enemyViews;
+        [SerializeField] private EnemyRosterView _enemyRosterView;
         [SerializeField] private GameObject _victoryLabel;
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
-        [SerializeField] private UnityEngine.UI.Text _singleAttackLabel;
-        [SerializeField] private UnityEngine.UI.Text _allAttackLabel;
+        [SerializeField] private BoardCardStatusView _outer20View;
+        [SerializeField] private BoardCardStatusView _outer6View;
 
         [SerializeField, Min(1), Tooltip("プレイヤーターン開始時の投擲本数")]
         private int _throwsPerTurn = 3;
@@ -27,17 +26,19 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Tooltip("カード再抽選の乱数シード")]
         private int _cardDrawSeed = 1;
 
+        [SerializeField, Tooltip("開発シーンに出現する敵の編成")]
+        private EnemySetup[] _enemyFormation = { new EnemySetup(8, 3), new EnemySetup(16, 4) };
+
         private BattleState _state;
 
         private void Awake()
         {
-            var enemies = new[] { new EnemyModel(8, attackDamage: 3), new EnemyModel(16, attackDamage: 4) };
-            if (_inputBinding == null || _enemyViews == null || _enemyViews.Length != enemies.Length ||
-                System.Array.Exists(_enemyViews, view => view == null) ||
+            if (_inputBinding == null || _enemyRosterView == null ||
+                _enemyFormation == null || _enemyFormation.Length == 0 ||
                 _victoryLabel == null || _turnLabel == null ||
-                _singleAttackLabel == null || _allAttackLabel == null)
+                _outer20View == null || _outer6View == null)
             {
-                Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力と戦闘の表示を設定してください", this);
+                Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力、戦闘の表示、敵の編成を設定してください", this);
                 enabled = false;
                 return;
             }
@@ -49,7 +50,15 @@ namespace DartsRoguelike.Presentation
             board.SetCard(OUTER_20_CELL, singleAttack);
             board.SetCard(OUTER_6_CELL, allAttack);
 
+            var enemies = new EnemyModel[_enemyFormation.Length];
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                EnemySetup setup = _enemyFormation[i];
+                enemies[i] = new EnemyModel(setup.MaxHealth, attackDamage: setup.AttackDamage);
+            }
+
             _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
+            _enemyRosterView.SetCount(enemies.Length);
             _victoryLabel.SetActive(false);
             RefreshEnemyStatus();
             RefreshTurnLabel();
@@ -130,11 +139,11 @@ namespace DartsRoguelike.Presentation
         /// </summary>
         private void RefreshEnemyStatus()
         {
-            for (int i = 0; i < _enemyViews.Length; i++)
+            for (int i = 0; i < _state.Enemies.Count; i++)
             {
                 EnemyModel enemy = _state.Enemies[i];
                 int nextAttackDamage = _state.Player.IsAlive ? enemy.NextAttackDamage : 0;
-                _enemyViews[i].Render(enemy.CurrentHealth, enemy.MaxHealth, nextAttackDamage);
+                _enemyRosterView.Render(i, enemy.CurrentHealth, enemy.MaxHealth, nextAttackDamage);
             }
         }
 
@@ -143,29 +152,43 @@ namespace DartsRoguelike.Presentation
         /// </summary>
         private void RefreshCardLabels()
         {
-            _singleAttackLabel.text = FormatCardLabel(OUTER_20_CELL);
-            _allAttackLabel.text = FormatCardLabel(OUTER_6_CELL);
+            RefreshCardLabel(OUTER_20_CELL, _outer20View);
+            RefreshCardLabel(OUTER_6_CELL, _outer6View);
         }
 
         /// <summary>
-        ///     マスの番号と現在のカード効果を凡例に表示する
+        ///     マスの番号とカードの状態を表示用のデータとして渡す
         /// </summary>
-        private string FormatCardLabel(DartboardCellId cell)
+        private void RefreshCardLabel(DartboardCellId cell, BoardCardStatusView view)
         {
-            string number = $"{cell.Number,2}";
-            if (_state.Board.IsCardUsed(cell))
-            {
-                return $"{number}   USED";
-            }
-
             BoardCard card = _state.Board.GetCard(cell);
-            if (card == null)
+            view.Render(
+                $"{cell.Number,2}",
+                card?.BaseDamage,
+                card?.Scope == BoardCard.TargetScope.AllEnemies,
+                _state.Board.IsCardUsed(cell));
+        }
+
+        [System.Serializable]
+        private struct EnemySetup
+        {
+            public EnemySetup(int maxHealth, int attackDamage)
             {
-                return $"{number}   Empty";
+                _maxHealth = maxHealth;
+                _attackDamage = attackDamage;
             }
 
-            string scope = card.Scope == BoardCard.TargetScope.AllEnemies ? "All" : "Single";
-            return $"{number}   {scope} ATK {card.BaseDamage}";
+            /// <summary> 敵の最大HP </summary>
+            public int MaxHealth => _maxHealth;
+
+            /// <summary> 敵の通常攻撃力 </summary>
+            public int AttackDamage => _attackDamage;
+
+            [SerializeField, Min(1), Tooltip("敵の最大HP")]
+            private int _maxHealth;
+
+            [SerializeField, Min(0), Tooltip("敵の通常攻撃力")]
+            private int _attackDamage;
         }
     }
 }
