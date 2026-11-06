@@ -10,7 +10,9 @@ namespace DartsRoguelike.Core.Model
     /// </summary>
     public class BattleState
     {
-        public BattleState(BoardState board, IReadOnlyList<EnemyModel> enemies)
+        public BattleState(
+            BoardState board, IReadOnlyList<EnemyModel> enemies, int throwsPerTurn = 3,
+            BattleCharacterModel? player = null)
         {
             Board = board ?? throw new ArgumentNullException(nameof(board));
 
@@ -22,6 +24,11 @@ namespace DartsRoguelike.Core.Model
             if (enemies.Count == 0)
             {
                 throw new ArgumentException("敵を1体以上指定してください", nameof(enemies));
+            }
+
+            if (throwsPerTurn <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(throwsPerTurn));
             }
 
             // 編成元の一覧が変更されても戦闘開始時の並び順を維持する
@@ -38,16 +45,84 @@ namespace DartsRoguelike.Core.Model
             }
 
             Enemies = battleEnemies.AsReadOnly();
+            Player = player ?? new BattleCharacterModel(12);
+            _throwsPerTurn = throwsPerTurn;
+            RemainingThrows = throwsPerTurn;
         }
 
         /// <summary> 戦闘中の盤面 </summary>
         public BoardState Board { get; }
+
+        /// <summary> 戦闘中のプレイヤー </summary>
+        public BattleCharacterModel Player { get; }
 
         /// <summary> 左からの表示順に並んだ戦闘中の敵 </summary>
         public IReadOnlyList<EnemyModel> Enemies { get; }
 
         /// <summary> 戦闘中の敵が全滅しているかどうか </summary>
         public bool AreAllEnemiesDefeated => FindFirstLivingEnemy() == null;
+
+        /// <summary> プレイヤーターンの残り投擲数 </summary>
+        public int RemainingThrows { get; private set; }
+
+        /// <summary> 生存敵がいて、プレイヤーが投擲を終えたかどうか </summary>
+        public bool IsEnemyTurn => RemainingThrows == 0 && Player.IsAlive && !AreAllEnemiesDefeated;
+
+        private readonly int _throwsPerTurn;
+
+        /// <summary>
+        ///     戦闘が継続中で残り本数があれば、確定した投擲を1本消費する
+        /// </summary>
+        public bool TryConsumeThrow()
+        {
+            if (RemainingThrows == 0 || !Player.IsAlive || AreAllEnemiesDefeated)
+            {
+                return false;
+            }
+
+            RemainingThrows--;
+            return true;
+        }
+
+        /// <summary>
+        ///     敵ターンを終え、次のプレイヤーターンの投擲数を補充する
+        /// </summary>
+        public bool TryStartNextPlayerTurn()
+        {
+            if (!IsEnemyTurn)
+            {
+                return false;
+            }
+
+            RemainingThrows = _throwsPerTurn;
+            return true;
+        }
+
+        /// <summary>
+        ///     生存敵が並び順に攻撃し、プレイヤーが生存していれば次のターンへ進む
+        /// </summary>
+        public bool TryResolveEnemyTurn()
+        {
+            if (!IsEnemyTurn)
+            {
+                return false;
+            }
+
+            foreach (EnemyModel enemy in Enemies)
+            {
+                if (enemy.IsAlive)
+                {
+                    DamageResolver.Resolve(Player, enemy.AttackDamage);
+                    if (!Player.IsAlive)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            TryStartNextPlayerTurn();
+            return true;
+        }
 
         /// <summary>
         ///     左からの位置を指定して生存敵を探す
