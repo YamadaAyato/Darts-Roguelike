@@ -85,20 +85,6 @@ namespace DartsRoguelike.Core.Model
         }
 
         /// <summary>
-        ///     敵ターンを終え、次のプレイヤーターンの投擲数を補充する
-        /// </summary>
-        public bool TryStartNextPlayerTurn()
-        {
-            if (!IsEnemyTurn)
-            {
-                return false;
-            }
-
-            RemainingThrows = _throwsPerTurn;
-            return true;
-        }
-
-        /// <summary>
         ///     生存敵が並び順に攻撃し、プレイヤーが生存していれば次のターンへ進む
         /// </summary>
         public bool TryResolveEnemyTurn()
@@ -121,7 +107,12 @@ namespace DartsRoguelike.Core.Model
                 }
             }
 
-            TryStartNextPlayerTurn();
+            if (Player.IsAlive)
+            {
+                RemainingThrows = _throwsPerTurn;
+                Board.ResetUsedCards();
+            }
+
             return true;
         }
 

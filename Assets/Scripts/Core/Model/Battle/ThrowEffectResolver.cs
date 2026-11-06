@@ -22,7 +22,7 @@ namespace DartsRoguelike.Core.Model
                 throw new ArgumentNullException(nameof(state));
             }
 
-            if (throwResult.HitResult.IsOutside)
+            if (throwResult.HitResult.IsOutside || !state.Player.IsAlive || state.AreAllEnemiesDefeated)
             {
                 return new ThrowResolution(throwResult);
             }
@@ -36,7 +36,7 @@ namespace DartsRoguelike.Core.Model
         private static ThrowResolution ResolveBoardCard(
             DartThrowResult throwResult, BattleState state, int? preferredEnemyIndex)
         {
-            BoardCard? card = state.Board.GetCard(throwResult.HitResult.Cell);
+            BoardCard? card = state.Board.UseCard(throwResult.HitResult.Cell);
             if (card == null)
             {
                 return new ThrowResolution(throwResult);

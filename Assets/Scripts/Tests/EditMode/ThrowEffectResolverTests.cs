@@ -19,7 +19,9 @@ namespace DartsRoguelike.Tests.EditMode
             var rightEnemy = new EnemyModel(8);
             var board = new BoardState();
             var cell = new DartboardCellId(20, DartboardRing.Double);
+            var secondCell = new DartboardCellId(6, DartboardRing.Double);
             board.SetCard(cell, new BoardCard(4));
+            board.SetCard(secondCell, new BoardCard(4));
 
             var state = new BattleState(board, new[] { leftEnemy, rightEnemy });
             var hit = new DartboardHitResult(cell, 40);
@@ -33,7 +35,8 @@ namespace DartsRoguelike.Tests.EditMode
             Assert.That(rightEnemy.CurrentHealth, Is.EqualTo(8));
             Assert.That(state.AreAllEnemiesDefeated, Is.False);
 
-            ThrowResolution second = ThrowEffectResolver.Resolve(throwResult, state);
+            var secondThrow = new DartThrowResult(Vector2.right, new DartboardHitResult(secondCell, 12));
+            ThrowResolution second = ThrowEffectResolver.Resolve(secondThrow, state);
             Assert.That(second.EnemyHits, Has.Count.EqualTo(1));
             Assert.That(second.EnemyHits[0].Target, Is.SameAs(rightEnemy));
             Assert.That(second.EnemyHits[0].HealthLost, Is.EqualTo(8));
@@ -42,6 +45,36 @@ namespace DartsRoguelike.Tests.EditMode
             ThrowResolution afterVictory = ThrowEffectResolver.Resolve(throwResult, state);
             Assert.That(afterVictory.EnemyHits, Is.Empty);
             Assert.That(afterVictory.DidAttack, Is.False);
+        }
+
+        /// <summary>
+        ///     同じカードマスの再発動は次のプレイヤーターンまで待つことを検証する
+        /// </summary>
+        [Test]
+        public void Resolve_UsedCard_ActivatesAgainOnlyOnNextPlayerTurn()
+        {
+            var enemy = new EnemyModel(20);
+            var board = new BoardState();
+            var cell = new DartboardCellId(20, DartboardRing.OuterSingle);
+            board.SetCard(cell, new BoardCard(4));
+            var state = new BattleState(board, new[] { enemy }, throwsPerTurn: 2);
+            var hit = new DartboardHitResult(cell, 20);
+            var throwResult = new DartThrowResult(Vector2.up, hit);
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(throwResult, state).DidAttack, Is.True);
+            Assert.That(board.IsCardUsed(cell), Is.True);
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(throwResult, state).DidAttack, Is.False);
+            Assert.That(enemy.CurrentHealth, Is.EqualTo(16));
+            Assert.That(board.IsCardUsed(cell), Is.True);
+
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(board.IsCardUsed(cell), Is.False);
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(throwResult, state).DidAttack, Is.True);
+            Assert.That(enemy.CurrentHealth, Is.EqualTo(12));
         }
 
         /// <summary>

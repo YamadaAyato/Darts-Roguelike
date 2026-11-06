@@ -33,19 +33,19 @@ namespace DartsRoguelike.Tests.EditMode
         ///     設定本数を消費すると敵ターンになり、次のプレイヤーターンで補充されることを検証する
         /// </summary>
         [Test]
-        public void TryStartNextPlayerTurn_AfterLastThrow_RefillsConfiguredCount()
+        public void TryResolveEnemyTurn_AfterLastThrow_RefillsConfiguredCount()
         {
             var enemy = new EnemyModel(5);
             var state = new BattleState(new BoardState(), new[] { enemy }, throwsPerTurn: 2);
 
-            Assert.That(state.TryStartNextPlayerTurn(), Is.False);
+            Assert.That(state.TryResolveEnemyTurn(), Is.False);
             Assert.That(state.TryConsumeThrow(), Is.True);
             Assert.That(state.RemainingThrows, Is.EqualTo(1));
             Assert.That(state.TryConsumeThrow(), Is.True);
             Assert.That(state.IsEnemyTurn, Is.True);
             Assert.That(state.TryConsumeThrow(), Is.False);
 
-            Assert.That(state.TryStartNextPlayerTurn(), Is.True);
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
             Assert.That(state.RemainingThrows, Is.EqualTo(2));
             Assert.That(state.IsEnemyTurn, Is.False);
         }

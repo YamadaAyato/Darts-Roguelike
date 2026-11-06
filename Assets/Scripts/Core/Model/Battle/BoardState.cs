@@ -12,6 +12,7 @@ namespace DartsRoguelike.Core.Model
     {
         private readonly Dictionary<DartboardCellId, BoardCard> _cards =
             new Dictionary<DartboardCellId, BoardCard>();
+        private readonly HashSet<DartboardCellId> _usedCards = new HashSet<DartboardCellId>();
 
         /// <summary>
         ///     指定したマスへカードを配置し、すでにある場合は上書きする
@@ -33,6 +34,32 @@ namespace DartsRoguelike.Core.Model
         public BoardCard? GetCard(DartboardCellId cell)
         {
             return _cards.TryGetValue(cell, out BoardCard? card) ? card : null;
+        }
+
+        /// <summary>
+        ///     指定したマスのカードが今のターンに発動済みかを確認する
+        /// </summary>
+        public bool IsCardUsed(DartboardCellId cell)
+        {
+            return _usedCards.Contains(cell);
+        }
+
+        /// <summary>
+        ///     発動可能なカードを使用済みにし、そのカードを返す
+        /// </summary>
+        /// <returns> 空マスまたは使用済みマスならnull </returns>
+        internal BoardCard? UseCard(DartboardCellId cell)
+        {
+            BoardCard? card = GetCard(cell);
+            return card != null && _usedCards.Add(cell) ? card : null;
+        }
+
+        /// <summary>
+        ///     次のプレイヤーターン用に使用済み状態を解除する
+        /// </summary>
+        internal void ResetUsedCards()
+        {
+            _usedCards.Clear();
         }
     }
 }
