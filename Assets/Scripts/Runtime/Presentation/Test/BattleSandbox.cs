@@ -14,8 +14,8 @@ namespace DartsRoguelike.Presentation
 
         [Header("参照")]
         [SerializeField] private DartAimInputBinding _inputBinding;
-        [SerializeField] private UnityEngine.UI.Text _leftEnemyHealth;
-        [SerializeField] private UnityEngine.UI.Text _rightEnemyHealth;
+        [SerializeField, Tooltip("敵の編成順に並べたステータス表示")]
+        private EnemyStatusView[] _enemyViews;
         [SerializeField] private GameObject _victoryLabel;
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
         [SerializeField] private UnityEngine.UI.Text _singleAttackLabel;
@@ -31,7 +31,9 @@ namespace DartsRoguelike.Presentation
 
         private void Awake()
         {
-            if (_inputBinding == null || _leftEnemyHealth == null || _rightEnemyHealth == null ||
+            var enemies = new[] { new EnemyModel(8, attackDamage: 3), new EnemyModel(16, attackDamage: 4) };
+            if (_inputBinding == null || _enemyViews == null || _enemyViews.Length != enemies.Length ||
+                System.Array.Exists(_enemyViews, view => view == null) ||
                 _victoryLabel == null || _turnLabel == null ||
                 _singleAttackLabel == null || _allAttackLabel == null)
             {
@@ -47,7 +49,6 @@ namespace DartsRoguelike.Presentation
             board.SetCard(OUTER_20_CELL, singleAttack);
             board.SetCard(OUTER_6_CELL, allAttack);
 
-            var enemies = new[] { new EnemyModel(8, attackDamage: 3), new EnemyModel(16, attackDamage: 4) };
             _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
             _victoryLabel.SetActive(false);
             RefreshEnemyStatus();
@@ -129,20 +130,12 @@ namespace DartsRoguelike.Presentation
         /// </summary>
         private void RefreshEnemyStatus()
         {
-            _leftEnemyHealth.text = FormatEnemyStatus(_state.Enemies[0]);
-            _rightEnemyHealth.text = FormatEnemyStatus(_state.Enemies[1]);
-        }
-
-        /// <summary>
-        ///     戦闘中の敵はHPに続けて次の攻撃予定を表示する
-        /// </summary>
-        private string FormatEnemyStatus(EnemyModel enemy)
-        {
-            string health = $"HP {enemy.CurrentHealth}/{enemy.MaxHealth}";
-            int nextAttackDamage = enemy.NextAttackDamage;
-            return _state.Player.IsAlive && nextAttackDamage > 0
-                ? $"{health}  |  ATK {nextAttackDamage}"
-                : health;
+            for (int i = 0; i < _enemyViews.Length; i++)
+            {
+                EnemyModel enemy = _state.Enemies[i];
+                int nextAttackDamage = _state.Player.IsAlive ? enemy.NextAttackDamage : 0;
+                _enemyViews[i].Render(enemy.CurrentHealth, enemy.MaxHealth, nextAttackDamage);
+            }
         }
 
         /// <summary>

@@ -478,6 +478,7 @@ GameObject:
   - component: {fileID: 145934680}
   - component: {fileID: 145934682}
   - component: {fileID: 145934681}
+  - component: {fileID: 145934683}
   m_Layer: 0
   m_Name: EnemyLeft
   m_TagString: Untagged
@@ -544,6 +545,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 145934679}
   m_CullTransparentMesh: 1
+--- !u!114 &145934683
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 145934679}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59ffab06704006244882c46be10d7fbc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Presentation.EnemyStatusView
+  _statusLabel: {fileID: 1625633493}
 --- !u!1 &204731415
 GameObject:
   m_ObjectHideFlags: 0
@@ -3976,6 +3990,7 @@ GameObject:
   - component: {fileID: 1227588803}
   - component: {fileID: 1227588805}
   - component: {fileID: 1227588804}
+  - component: {fileID: 1227588806}
   m_Layer: 0
   m_Name: EnemyRight
   m_TagString: Untagged
@@ -4042,6 +4057,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1227588802}
   m_CullTransparentMesh: 1
+--- !u!114 &1227588806
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1227588802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59ffab06704006244882c46be10d7fbc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Presentation.EnemyStatusView
+  _statusLabel: {fileID: 2053039431}
 --- !u!1 &1230378723
 GameObject:
   m_ObjectHideFlags: 0
@@ -4376,8 +4404,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Presentation.BattleSandbox
   _inputBinding: {fileID: 1321270718}
-  _leftEnemyHealth: {fileID: 1625633493}
-  _rightEnemyHealth: {fileID: 2053039431}
+  _enemyViews:
+  - {fileID: 145934683}
+  - {fileID: 1227588806}
   _victoryLabel: {fileID: 870556454}
   _turnLabel: {fileID: 646738780}
   _singleAttackLabel: {fileID: 1986520916}
