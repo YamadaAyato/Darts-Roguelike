@@ -9,16 +9,12 @@ namespace DartsRoguelike.Presentation
     /// </summary>
     public class BattleSandbox : MonoBehaviour
     {
-        private static readonly DartboardCellId OUTER_20_CELL = new DartboardCellId(20, DartboardRing.OuterSingle);
-        private static readonly DartboardCellId OUTER_6_CELL = new DartboardCellId(6, DartboardRing.OuterSingle);
-
         [Header("参照")]
         [SerializeField] private DartAimInputBinding _inputBinding;
         [SerializeField] private EnemyRosterView _enemyRosterView;
         [SerializeField] private GameObject _victoryLabel;
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
-        [SerializeField] private BoardCardStatusView _outer20View;
-        [SerializeField] private BoardCardStatusView _outer6View;
+        [SerializeField] private BoardCardListView _boardCardListView;
 
         [SerializeField, Min(1), Tooltip("プレイヤーターン開始時の投擲本数")]
         private int _throwsPerTurn = 3;
@@ -29,26 +25,30 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Tooltip("開発シーンに出現する敵の編成")]
         private EnemySetup[] _enemyFormation = { new EnemySetup(8, 3), new EnemySetup(16, 4) };
 
+        [SerializeField, Tooltip("初期カードの配置と効果")]
+        private CardSetup[] _cardPlacements =
+        {
+            new CardSetup(20, DartboardRing.OuterSingle, 8, BoardCard.TargetScope.SingleEnemy),
+            new CardSetup(6, DartboardRing.OuterSingle, 4, BoardCard.TargetScope.AllEnemies)
+        };
+
         private BattleState _state;
+        private DartboardCellId[] _cardCells;
+        private BoardCardStatusView[] _cardViews;
 
         private void Awake()
         {
             if (_inputBinding == null || _enemyRosterView == null ||
                 _enemyFormation == null || _enemyFormation.Length == 0 ||
                 _victoryLabel == null || _turnLabel == null ||
-                _outer20View == null || _outer6View == null)
+                _boardCardListView == null || _cardPlacements == null)
             {
                 Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力、戦闘の表示、敵の編成を設定してください", this);
                 enabled = false;
                 return;
             }
 
-            var singleAttack = new BoardCard(8);
-            var allAttack = new BoardCard(4, BoardCard.TargetScope.AllEnemies);
-            var deck = new BoardCardDeck(new[] { singleAttack, allAttack, null }, _cardDrawSeed);
-            var board = new BoardState(deck);
-            board.SetCard(OUTER_20_CELL, singleAttack);
-            board.SetCard(OUTER_6_CELL, allAttack);
+            BoardState board = CreateBoard();
 
             var enemies = new EnemyModel[_enemyFormation.Length];
             for (int i = 0; i < enemies.Length; i++)
@@ -59,6 +59,7 @@ namespace DartsRoguelike.Presentation
 
             _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
             _enemyRosterView.SetCount(enemies.Length);
+            _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
             _victoryLabel.SetActive(false);
             RefreshEnemyStatus();
             RefreshTurnLabel();
@@ -152,8 +153,10 @@ namespace DartsRoguelike.Presentation
         /// </summary>
         private void RefreshCardLabels()
         {
-            RefreshCardLabel(OUTER_20_CELL, _outer20View);
-            RefreshCardLabel(OUTER_6_CELL, _outer6View);
+            for (int i = 0; i < _cardCells.Length; i++)
+            {
+                RefreshCardLabel(_cardCells[i], _cardViews[i]);
+            }
         }
 
         /// <summary>
@@ -163,10 +166,88 @@ namespace DartsRoguelike.Presentation
         {
             BoardCard card = _state.Board.GetCard(cell);
             view.Render(
-                $"{cell.Number,2}",
+                FormatCellLabel(cell),
                 card?.BaseDamage,
                 card?.Scope == BoardCard.TargetScope.AllEnemies,
                 _state.Board.IsCardUsed(cell));
+        }
+
+        /// <summary>
+        ///     Inspectorの配置から盤面を作り、各カードと空マスを再抽選候補にする
+        /// </summary>
+        private BoardState CreateBoard()
+        {
+            _cardCells = new DartboardCellId[_cardPlacements.Length];
+            // 末尾のnullを通常マスの再抽選候補にする
+            var candidates = new BoardCard[_cardPlacements.Length + 1];
+            var uniqueCells = new System.Collections.Generic.HashSet<DartboardCellId>();
+            for (int i = 0; i < _cardPlacements.Length; i++)
+            {
+                CardSetup setup = _cardPlacements[i];
+                DartboardCellId cell = setup.CreateCell();
+                if (!uniqueCells.Add(cell))
+                {
+                    throw new System.InvalidOperationException($"[{nameof(BattleSandbox)}] カードの配置先が重複しています");
+                }
+
+                _cardCells[i] = cell;
+                candidates[i] = setup.CreateCard();
+            }
+
+            var board = new BoardState(new BoardCardDeck(candidates, _cardDrawSeed));
+            for (int i = 0; i < _cardCells.Length; i++)
+            {
+                board.SetCard(_cardCells[i], candidates[i]);
+            }
+
+            return board;
+        }
+
+        /// <summary>
+        ///     番号が同じでもリングの違いが分かるマス名を作る
+        /// </summary>
+        private static string FormatCellLabel(DartboardCellId cell)
+        {
+            return cell.Ring switch
+            {
+                DartboardRing.InnerBull => "BULL",
+                DartboardRing.OuterBull => "OUT BULL",
+                DartboardRing.InnerSingle => $"{cell.Number,2} IS",
+                DartboardRing.Double => $"{cell.Number,2} D",
+                DartboardRing.Triple => $"{cell.Number,2} T",
+                _ => $"{cell.Number,2} OS"
+            };
+        }
+
+        [System.Serializable]
+        private struct CardSetup
+        {
+            public CardSetup(int number, DartboardRing ring, int attackDamage, BoardCard.TargetScope scope)
+            {
+                _number = number;
+                _ring = ring;
+                _attackDamage = attackDamage;
+                _scope = scope;
+            }
+
+            [SerializeField, Range(0, 20), Tooltip("マスの番号。ブルは0")]
+            private int _number;
+            [SerializeField, Tooltip("マスのリング")]
+            private DartboardRing _ring;
+            [SerializeField, Min(1), Tooltip("カードの基礎ダメージ")]
+            private int _attackDamage;
+            [SerializeField, Tooltip("攻撃の対象範囲")]
+            private BoardCard.TargetScope _scope;
+
+            /// <summary>
+            ///     設定した配置先のマスを作る
+            /// </summary>
+            public DartboardCellId CreateCell() => new DartboardCellId(_number, _ring);
+
+            /// <summary>
+            ///     設定した攻撃カードを作る
+            /// </summary>
+            public BoardCard CreateCard() => new BoardCard(_attackDamage, _scope);
         }
 
         [System.Serializable]
