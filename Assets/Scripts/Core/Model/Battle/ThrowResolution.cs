@@ -12,11 +12,14 @@ namespace DartsRoguelike.Core.Model
     {
         internal ThrowResolution(
             DartThrowResult throwResult, IReadOnlyList<EnemyHitResult>? enemyHits = null,
-            int shieldGained = 0, int healthRecovered = 0)
+            int shieldGained = 0, int healthRecovered = 0,
+            int hazardHealthLost = 0, int hazardShieldLost = 0)
         {
             ThrowResult = throwResult;
             ShieldGained = shieldGained;
             HealthRecovered = healthRecovered;
+            HazardHealthLost = hazardHealthLost;
+            HazardShieldLost = hazardShieldLost;
             _enemyHits = enemyHits;
         }
 
@@ -34,6 +37,12 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> この一投でプレイヤーが実際に回復したHP </summary>
         public int HealthRecovered { get; }
+
+        /// <summary> 危険効果でプレイヤーが失ったHP </summary>
+        public int HazardHealthLost { get; }
+
+        /// <summary> 危険効果でプレイヤーが失ったシールド </summary>
+        public int HazardShieldLost { get; }
 
         private readonly IReadOnlyList<EnemyHitResult>? _enemyHits;
     }

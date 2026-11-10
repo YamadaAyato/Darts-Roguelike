@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace DartsRoguelike.Core.Model
 {
     /// <summary>
-    ///     戦闘中に盤面の各マスへ配置されているカードを保持する
+    ///     盤面のカードと危険効果を別々に保持する
     /// </summary>
     public class BoardState
     {
@@ -17,6 +17,8 @@ namespace DartsRoguelike.Core.Model
 
         private readonly Dictionary<DartboardCellId, BoardCard> _cards =
             new Dictionary<DartboardCellId, BoardCard>();
+        private readonly Dictionary<DartboardCellId, BoardHazard> _hazards =
+            new Dictionary<DartboardCellId, BoardHazard>();
         private readonly List<DartboardCellId> _usedCards = new List<DartboardCellId>();
         private readonly BoardCardDeck? _cardDeck;
 
@@ -40,6 +42,28 @@ namespace DartsRoguelike.Core.Model
         public BoardCard? GetCard(DartboardCellId cell)
         {
             return _cards.TryGetValue(cell, out BoardCard? card) ? card : null;
+        }
+
+        /// <summary>
+        ///     カードと独立して、指定したマスの危険効果を設定する
+        /// </summary>
+        public void SetHazard(DartboardCellId cell, BoardHazard hazard)
+        {
+            if (cell.Ring == DartboardRing.OutSide)
+            {
+                throw new ArgumentException("盤外に危険効果は配置できません", nameof(cell));
+            }
+
+            _hazards[cell] = hazard ?? throw new ArgumentNullException(nameof(hazard));
+        }
+
+        /// <summary>
+        ///     指定したマスに配置された危険効果を取得する
+        /// </summary>
+        /// <returns> 危険効果がない場合はnull </returns>
+        public BoardHazard? GetHazard(DartboardCellId cell)
+        {
+            return _hazards.TryGetValue(cell, out BoardHazard? hazard) ? hazard : null;
         }
 
         /// <summary>

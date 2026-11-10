@@ -12,7 +12,7 @@ namespace DartsRoguelike.Core.Model
     {
         public BattleState(
             BoardState board, IReadOnlyList<EnemyModel> enemies, int throwsPerTurn = 3,
-            BattleCharacterModel? player = null)
+            BattleCharacterModel? player = null, int hazardSeed = 1)
         {
             Board = board ?? throw new ArgumentNullException(nameof(board));
 
@@ -48,6 +48,8 @@ namespace DartsRoguelike.Core.Model
             Player = player ?? new BattleCharacterModel(12);
             _throwsPerTurn = throwsPerTurn;
             RemainingThrows = throwsPerTurn;
+            _hazardRandom = new Random(hazardSeed);
+            PrepareEnemyActions();
         }
 
         /// <summary> 戦闘中の盤面 </summary>
@@ -69,6 +71,7 @@ namespace DartsRoguelike.Core.Model
         public bool IsEnemyTurn => RemainingThrows == 0 && Player.IsAlive && !AreAllEnemiesDefeated;
 
         private readonly int _throwsPerTurn;
+        private readonly Random _hazardRandom;
 
         /// <summary>
         ///     戦闘が継続中で残り本数があれば、確定した投擲を1本消費する
@@ -85,7 +88,7 @@ namespace DartsRoguelike.Core.Model
         }
 
         /// <summary>
-        ///     生存敵が並び順に攻撃し、プレイヤーが生存していれば次のターンへ進む
+        ///     生存敵が予告した行動を実行し、プレイヤーが生存していれば次のターンへ進む
         /// </summary>
         public bool TryResolveEnemyTurn()
         {
@@ -96,14 +99,10 @@ namespace DartsRoguelike.Core.Model
 
             foreach (EnemyModel enemy in Enemies)
             {
-                int attackDamage = enemy.NextAttackDamage;
-                if (attackDamage > 0)
+                EnemyActionResolver.Resolve(enemy, this);
+                if (!Player.IsAlive)
                 {
-                    DamageResolver.Resolve(Player, attackDamage);
-                    if (!Player.IsAlive)
-                    {
-                        break;
-                    }
+                    break;
                 }
             }
 
@@ -111,6 +110,7 @@ namespace DartsRoguelike.Core.Model
             {
                 RemainingThrows = _throwsPerTurn;
                 Board.RefreshUsedCards();
+                PrepareEnemyActions();
             }
 
             return true;
@@ -147,6 +147,28 @@ namespace DartsRoguelike.Core.Model
             }
 
             return null;
+        }
+
+        /// <summary>
+        ///     戦闘用の乱数で危険マスの配置先を確定する
+        /// </summary>
+        internal PlaceHazardEffect? SelectHazardPlacement(HazardPlacementRequest request)
+        {
+            return HazardPlacementResolver.Select(request, Board, _hazardRandom);
+        }
+
+        /// <summary>
+        ///     生存敵の次の行動をプレイヤーターン開始時に確定する
+        /// </summary>
+        private void PrepareEnemyActions()
+        {
+            foreach (EnemyModel enemy in Enemies)
+            {
+                if (enemy.IsAlive)
+                {
+                    enemy.PrepareActions(Board, _hazardRandom);
+                }
+            }
         }
     }
 }

@@ -6,12 +6,12 @@ using System.Collections.Generic;
 namespace DartsRoguelike.Core.Model
 {
     /// <summary>
-    ///     着弾したマスのカード効果を戦闘状態へ適用する
+    ///     着弾したマスの危険効果とカードを戦闘状態へ適用する
     /// </summary>
     public static class ThrowEffectResolver
     {
         /// <summary>
-        ///     一投のカード効果を解決し、戦闘状態の変化を返す
+        ///     一投の危険効果とカードを順に解決し、戦闘状態の変化を返す
         /// </summary>
         /// <param name="preferredEnemyIndex"> 優先して狙う敵の位置。左端は0、指定なしはnull </param>
         public static ThrowResolution Resolve(
@@ -27,19 +27,34 @@ namespace DartsRoguelike.Core.Model
                 return new ThrowResolution(throwResult);
             }
 
-            return ResolveBoardCard(throwResult, state, preferredEnemyIndex);
+            int hazardHealthLost = 0;
+            int hazardShieldLost = 0;
+            BoardHazard? hazard = state.Board.GetHazard(throwResult.HitResult.Cell);
+            if (hazard != null)
+            {
+                (hazardHealthLost, hazardShieldLost) = HazardEffectResolver.Resolve(hazard, state.Player);
+                if (!state.Player.IsAlive)
+                {
+                    return new ThrowResolution(throwResult,
+                        hazardHealthLost: hazardHealthLost, hazardShieldLost: hazardShieldLost);
+                }
+            }
+
+            return ResolveBoardCard(throwResult, state, preferredEnemyIndex, hazardHealthLost, hazardShieldLost);
         }
 
         /// <summary>
         ///     盤面カードの段階で着弾マスの効果を解決する
         /// </summary>
         private static ThrowResolution ResolveBoardCard(
-            DartThrowResult throwResult, BattleState state, int? preferredEnemyIndex)
+            DartThrowResult throwResult, BattleState state, int? preferredEnemyIndex,
+            int hazardHealthLost, int hazardShieldLost)
         {
             BoardCard? card = state.Board.UseCard(throwResult.HitResult.Cell);
             if (card == null)
             {
-                return new ThrowResolution(throwResult);
+                return new ThrowResolution(throwResult,
+                    hazardHealthLost: hazardHealthLost, hazardShieldLost: hazardShieldLost);
             }
 
             DartboardRing ring = throwResult.HitResult.Ring;
@@ -61,10 +76,22 @@ namespace DartsRoguelike.Core.Model
                         int healing = DartboardEffectMultiplier.Apply(heal.BaseHealing, ring);
                         healthRecovered += state.Player.Heal(healing);
                         break;
+                    case PlaceHazardEffect placement:
+                        HazardPlacementResolver.Resolve(placement, state.Board);
+                        break;
+                    case HazardPlacementRequest request:
+                        PlaceHazardEffect? selectedPlacement = state.SelectHazardPlacement(request);
+                        if (selectedPlacement != null)
+                        {
+                            HazardPlacementResolver.Resolve(selectedPlacement, state.Board);
+                        }
+
+                        break;
                 }
             }
 
-            return new ThrowResolution(throwResult, hits.AsReadOnly(), shieldGained, healthRecovered);
+            return new ThrowResolution(throwResult, hits.AsReadOnly(), shieldGained, healthRecovered,
+                hazardHealthLost, hazardShieldLost);
         }
 
         /// <summary>
