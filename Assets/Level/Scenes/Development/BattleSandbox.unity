@@ -4296,8 +4296,10 @@ MonoBehaviour:
   _enemyFormation:
   - _maxHealth: 8
     _attackDamage: 3
+    _definition: {fileID: 11400000, guid: 5b33b81d1e4d09c40ad2d97736d4d62d, type: 2}
   - _maxHealth: 16
     _attackDamage: 4
+    _definition: {fileID: 0}
   _cardPlacements:
   - _number: 20
     _ring: 2
@@ -4329,6 +4331,12 @@ MonoBehaviour:
     _effect: 0
     _scope: 0
     _definition: {fileID: 11400000, guid: 9a9cda0edd9a8974da4692c612ec5470, type: 2}
+  - _number: 5
+    _ring: 2
+    _amount: 1
+    _effect: 0
+    _scope: 0
+    _definition: {fileID: 11400000, guid: a019aa313ff9fb1438d9200d79bdee0f, type: 2}
 --- !u!1 &1376441509
 GameObject:
   m_ObjectHideFlags: 0
@@ -4657,8 +4665,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 16, y: -50}
-  m_SizeDelta: {x: 228, y: 32}
+  m_AnchoredPosition: {x: 16, y: -36}
+  m_SizeDelta: {x: 228, y: 44}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1625633493
 MonoBehaviour:
@@ -4682,14 +4690,14 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 25
+    m_FontSize: 18
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
     m_MaxSize: 40
-    m_Alignment: 3
+    m_Alignment: 0
     m_AlignByGeometry: 0
-    m_RichText: 1
+    m_RichText: 0
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
@@ -4736,8 +4744,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 16, y: -12}
-  m_SizeDelta: {x: 228, y: 32}
+  m_AnchoredPosition: {x: 16, y: -8}
+  m_SizeDelta: {x: 228, y: 24}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1838974793
 MonoBehaviour:
@@ -4761,7 +4769,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 24
+    m_FontSize: 20
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10

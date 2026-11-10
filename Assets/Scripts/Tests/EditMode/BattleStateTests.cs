@@ -9,6 +9,90 @@ namespace DartsRoguelike.Tests.EditMode
     public class BattleStateTests
     {
         /// <summary>
+        ///     各行動が敵の基礎攻撃力に倍率を掛け、それぞれのダメージを切り捨てる
+        /// </summary>
+        [TestCase(3, 1, 3)]
+        [TestCase(3, 2, 6)]
+        [TestCase(5, 1.5, 7)]
+        public void EnemyAttackAction_UsesBaseAttackDamage(int baseDamage, double multiplier, int expectedDamage)
+        {
+            var enemy = new EnemyModel(8, attackDamage: baseDamage);
+            var action = new EnemyAttackAction(multiplier);
+
+            Assert.That(enemy.BaseAttackDamage, Is.EqualTo(baseDamage));
+            Assert.That(EnemyActionResolver.CalculateAttackDamage(enemy, action), Is.EqualTo(expectedDamage));
+        }
+
+        /// <summary>
+        ///     通常攻撃、設置、2倍攻撃を登録順に実行する
+        /// </summary>
+        [Test]
+        public void TryResolveEnemyTurn_NormalAndDoubleAttack_UsesIndividualActions()
+        {
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            var player = new BattleCharacterModel(12, initialShield: 4);
+            var enemy = new EnemyModel(8, attackDamage: 3, plannedActions: new IEnemyAction[]
+            {
+                new EnemyAttackAction(),
+                new PlaceHazardEffect(cell, new BoardHazard(2)),
+                new EnemyAttackAction(2)
+            });
+            var state = new BattleState(new BoardState(), new[] { enemy }, throwsPerTurn: 1, player: player);
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(player.CurrentHealth, Is.EqualTo(7));
+            Assert.That(player.CurrentShield, Is.Zero);
+            Assert.That(state.Board.GetHazard(cell), Is.Not.Null);
+        }
+
+        /// <summary>
+        ///     予告した順に敵が攻撃と危険マス設置を行い、既存カードを保持する
+        /// </summary>
+        [Test]
+        public void TryResolveEnemyTurn_PlannedPlacement_PreservesCard()
+        {
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            var board = new BoardState();
+            var card = BoardCard.CreateShield(4);
+            board.SetCard(cell, card);
+            var enemy = new EnemyModel(8, attackDamage: 3, plannedActions: new IEnemyAction[]
+            {
+                new EnemyAttackAction(),
+                new PlaceHazardEffect(cell, new BoardHazard(4))
+            });
+            var state = new BattleState(board, new[] { enemy }, throwsPerTurn: 1);
+
+            Assert.That(board.GetHazard(cell), Is.Null);
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(state.Player.CurrentHealth, Is.EqualTo(9));
+            Assert.That(((HazardDamageEffect)board.GetHazard(cell).Effects[0]).Damage, Is.EqualTo(4));
+            Assert.That(board.GetCard(cell), Is.SameAs(card));
+            Assert.That(state.RemainingThrows, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        ///     攻撃でプレイヤーが倒れた場合は、後続の危険マス設置を実行しない
+        /// </summary>
+        [Test]
+        public void TryResolveEnemyTurn_LethalAttack_SkipsPlacement()
+        {
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            var enemy = new EnemyModel(8, attackDamage: 12, plannedActions: new IEnemyAction[]
+            {
+                new EnemyAttackAction(),
+                new PlaceHazardEffect(cell, new BoardHazard(4))
+            });
+            var state = new BattleState(new BoardState(), new[] { enemy }, throwsPerTurn: 1);
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(state.Player.IsAlive, Is.False);
+            Assert.That(state.Board.GetHazard(cell), Is.Null);
+        }
+
+        /// <summary>
         ///     撃破した敵を飛ばし、最後の敵の撃破で全滅になることを検証する
         /// </summary>
         [Test]
@@ -63,8 +147,8 @@ namespace DartsRoguelike.Tests.EditMode
             var state = new BattleState(
                 new BoardState(), new[] { defeatedEnemy, livingEnemy }, throwsPerTurn: 1, player: player);
 
-            Assert.That(defeatedEnemy.NextAttackDamage, Is.Zero);
-            Assert.That(livingEnemy.NextAttackDamage, Is.EqualTo(4));
+            Assert.That(defeatedEnemy.BaseAttackDamage, Is.EqualTo(10));
+            Assert.That(livingEnemy.BaseAttackDamage, Is.EqualTo(4));
             Assert.That(state.TryResolveEnemyTurn(), Is.False);
             Assert.That(state.TryConsumeThrow(), Is.True);
             Assert.That(state.TryResolveEnemyTurn(), Is.True);

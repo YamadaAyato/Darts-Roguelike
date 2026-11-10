@@ -10,6 +10,106 @@ namespace DartsRoguelike.Tests.EditMode
     public class ThrowEffectResolverTests
     {
         /// <summary>
+        ///     複数の危険効果を順に解決し、死亡した場合はカードを発動しない
+        /// </summary>
+        [Test]
+        public void Resolve_MultipleHazardEffects_StopsAtPlayerDeath()
+        {
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            var hazard = new BoardHazard(new IBoardHazardEffect[]
+            {
+                new HazardDamageEffect(3),
+                new HazardDamageEffect(4)
+            });
+            var board = new BoardState();
+            board.SetHazard(cell, hazard);
+            board.SetCard(cell, new BoardCard(new IBoardCardEffect[] { new HealCardEffect(4) }));
+            var player = new BattleCharacterModel(2, initialShield: 2);
+            var state = new BattleState(board, new[] { new EnemyModel(20) }, player: player);
+            var hit = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 14));
+
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(hit, state);
+
+            Assert.That(resolution.HazardShieldLost, Is.EqualTo(2));
+            Assert.That(resolution.HazardHealthLost, Is.EqualTo(2));
+            Assert.That(resolution.HealthRecovered, Is.Zero);
+            Assert.That(player.IsAlive, Is.False);
+            Assert.That(board.IsCardUsed(cell), Is.False);
+        }
+
+        /// <summary>
+        ///     カードが置いた危険効果は設置時には踏まず、同じターンの次の命中から発動する
+        /// </summary>
+        [Test]
+        public void Resolve_PlacementCard_TriggersHazardOnNextHit()
+        {
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            var board = new BoardState();
+            var card = new BoardCard(new IBoardCardEffect[]
+            {
+                new PlaceHazardEffect(cell, new BoardHazard(3))
+            });
+            board.SetCard(cell, card);
+            var state = new BattleState(board, new[] { new EnemyModel(20) });
+            var hit = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 14));
+
+            ThrowResolution first = ThrowEffectResolver.Resolve(hit, state);
+            Assert.That(first.HazardHealthLost, Is.Zero);
+            Assert.That(state.Player.CurrentHealth, Is.EqualTo(12));
+            Assert.That(((HazardDamageEffect)board.GetHazard(cell).Effects[0]).Damage, Is.EqualTo(3));
+            Assert.That(board.GetCard(cell), Is.SameAs(card));
+
+            ThrowResolution second = ThrowEffectResolver.Resolve(hit, state);
+            Assert.That(second.HazardHealthLost, Is.EqualTo(3));
+            Assert.That(board.IsCardUsed(cell), Is.True);
+        }
+
+        /// <summary>
+        ///     危険効果をカードより先に適用し、致死時はカードを使わないことを検証する
+        /// </summary>
+        [TestCase(5, 3, 4, 9, true)]
+        [TestCase(10, 8, 0, 0, false)]
+        public void Resolve_HazardWithHealCard_AppliesHazardFirst(
+            int hazardDamage, int expectedHealthLost, int expectedHealing, int expectedHealth, bool cardUsed)
+        {
+            var player = new BattleCharacterModel(10, initialShield: 2);
+            player.TakeDamage(2);
+            var board = new BoardState();
+            var cell = new DartboardCellId(14, DartboardRing.OuterSingle);
+            board.SetCard(cell, new BoardCard(new IBoardCardEffect[] { new HealCardEffect(4) }));
+            board.SetHazard(cell, new BoardHazard(hazardDamage));
+            var state = new BattleState(board, new[] { new EnemyModel(20) }, player: player);
+            var hit = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 14));
+
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(hit, state);
+
+            Assert.That(resolution.HazardShieldLost, Is.EqualTo(2));
+            Assert.That(resolution.HazardHealthLost, Is.EqualTo(expectedHealthLost));
+            Assert.That(resolution.HealthRecovered, Is.EqualTo(expectedHealing));
+            Assert.That(player.CurrentHealth, Is.EqualTo(expectedHealth));
+            Assert.That(board.IsCardUsed(cell), Is.EqualTo(cardUsed));
+        }
+
+        /// <summary>
+        ///     カードのないマスでも危険効果が発動することを検証する
+        /// </summary>
+        [Test]
+        public void Resolve_HazardWithoutCard_DamagesPlayer()
+        {
+            var board = new BoardState();
+            var cell = new DartboardCellId(14, DartboardRing.Triple);
+            board.SetHazard(cell, new BoardHazard(3));
+            var state = new BattleState(board, new[] { new EnemyModel(20) });
+            var hit = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 42));
+
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(hit, state);
+
+            Assert.That(resolution.HazardHealthLost, Is.EqualTo(3));
+            Assert.That(resolution.DidAttack, Is.False);
+            Assert.That(board.IsCardUsed(cell), Is.False);
+        }
+
+        /// <summary>
         ///     リング倍率、最大HPによる上限、同じマスの再発動防止を検証する
         /// </summary>
         [TestCase(DartboardRing.OuterSingle, 4, 4)]
