@@ -10,6 +10,34 @@ namespace DartsRoguelike.Tests.EditMode
     public class ThrowEffectResolverTests
     {
         /// <summary>
+        ///     リング倍率、最大HPによる上限、同じマスの再発動防止を検証する
+        /// </summary>
+        [TestCase(DartboardRing.OuterSingle, 4, 4)]
+        [TestCase(DartboardRing.Double, 8, 8)]
+        [TestCase(DartboardRing.Triple, 11, 11)]
+        [TestCase(DartboardRing.Triple, 3, 3)]
+        [TestCase(DartboardRing.OuterSingle, 0, 0)]
+        public void Resolve_HealCard_ReportsActualRecovery(DartboardRing ring, int missingHealth, int expectedRecovery)
+        {
+            var player = new BattleCharacterModel(12, initialShield: 2);
+            player.TakeDamage(missingHealth);
+            var board = new BoardState();
+            var cell = new DartboardCellId(14, ring);
+            board.SetCard(cell, new BoardCard(new IBoardCardEffect[] { new HealCardEffect(4) }));
+            var state = new BattleState(board, new[] { new EnemyModel(20) }, player: player);
+            var hit = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 14));
+
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(hit, state);
+
+            Assert.That(resolution.HealthRecovered, Is.EqualTo(expectedRecovery));
+            Assert.That(resolution.DidAttack, Is.False);
+            Assert.That(player.CurrentHealth, Is.EqualTo(12 - missingHealth + expectedRecovery));
+            Assert.That(player.CurrentShield, Is.EqualTo(2));
+            Assert.That(board.IsCardUsed(cell), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(hit, state).HealthRecovered, Is.Zero);
+        }
+
+        /// <summary>
         ///     複数効果を登録順に解決し、カード全体を一度だけ使うことを検証する
         /// </summary>
         [Test]

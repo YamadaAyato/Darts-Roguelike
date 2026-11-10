@@ -11,10 +11,12 @@ namespace DartsRoguelike.Core.Model
     public readonly struct ThrowResolution
     {
         internal ThrowResolution(
-            DartThrowResult throwResult, IReadOnlyList<EnemyHitResult>? enemyHits = null, int shieldGained = 0)
+            DartThrowResult throwResult, IReadOnlyList<EnemyHitResult>? enemyHits = null,
+            int shieldGained = 0, int healthRecovered = 0)
         {
             ThrowResult = throwResult;
             ShieldGained = shieldGained;
+            HealthRecovered = healthRecovered;
             _enemyHits = enemyHits;
         }
 
@@ -29,6 +31,9 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> この一投でプレイヤーが実際に獲得したシールド </summary>
         public int ShieldGained { get; }
+
+        /// <summary> この一投でプレイヤーが実際に回復したHP </summary>
+        public int HealthRecovered { get; }
 
         private readonly IReadOnlyList<EnemyHitResult>? _enemyHits;
     }

@@ -190,6 +190,7 @@ namespace DartsRoguelike.Presentation
                 AttackCardEffect attack =>
                     $"{(attack.Scope == AttackTargetScope.AllEnemies ? "All" : "Single")} ATK {attack.BaseDamage}",
                 ShieldCardEffect shield => $"Shield {shield.BaseShield}",
+                HealCardEffect heal => $"Heal {heal.BaseHealing}",
                 _ => "Effect"
             };
         }

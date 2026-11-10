@@ -45,6 +45,7 @@ namespace DartsRoguelike.Core.Model
             DartboardRing ring = throwResult.HitResult.Ring;
             var hits = new List<EnemyHitResult>();
             int shieldGained = 0;
+            int healthRecovered = 0;
             foreach (IBoardCardEffect effect in card.Effects)
             {
                 switch (effect)
@@ -56,10 +57,14 @@ namespace DartsRoguelike.Core.Model
                         int amount = DartboardEffectMultiplier.Apply(shield.BaseShield, ring);
                         shieldGained += state.Player.GainShield(amount);
                         break;
+                    case HealCardEffect heal:
+                        int healing = DartboardEffectMultiplier.Apply(heal.BaseHealing, ring);
+                        healthRecovered += state.Player.Heal(healing);
+                        break;
                 }
             }
 
-            return new ThrowResolution(throwResult, hits.AsReadOnly(), shieldGained);
+            return new ThrowResolution(throwResult, hits.AsReadOnly(), shieldGained, healthRecovered);
         }
 
         /// <summary>

@@ -77,6 +77,17 @@ namespace DartsRoguelike.Core.Model
         }
 
         /// <summary>
+        ///     最大HPまで回復する
+        /// </summary>
+        /// <returns> 実際に回復したHP </returns>
+        internal int Heal(int amount)
+        {
+            int recovered = Math.Min(amount, MaxHealth - CurrentHealth);
+            CurrentHealth += recovered;
+            return recovered;
+        }
+
+        /// <summary>
         ///     シールドでダメージを吸収する
         /// </summary>
         /// <returns> 実際に減ったシールド </returns>
