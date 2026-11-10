@@ -31,7 +31,7 @@ namespace DartsRoguelike.Core.Model
         }
 
         /// <summary>
-        ///     盤面カードの段階で着弾マスの攻撃を解決する
+        ///     盤面カードの段階で着弾マスの効果を解決する
         /// </summary>
         private static ThrowResolution ResolveBoardCard(
             DartThrowResult throwResult, BattleState state, int? preferredEnemyIndex)
@@ -43,18 +43,43 @@ namespace DartsRoguelike.Core.Model
             }
 
             DartboardRing ring = throwResult.HitResult.Ring;
-            if (card.Scope == BoardCard.TargetScope.AllEnemies)
+            var hits = new List<EnemyHitResult>();
+            int shieldGained = 0;
+            foreach (IBoardCardEffect effect in card.Effects)
             {
-                var hits = new List<EnemyHitResult>();
+                switch (effect)
+                {
+                    case AttackCardEffect attack:
+                        ResolveAttack(attack, ring, state, preferredEnemyIndex, hits);
+                        break;
+                    case ShieldCardEffect shield:
+                        int amount = DartboardEffectMultiplier.Apply(shield.BaseShield, ring);
+                        shieldGained += state.Player.GainShield(amount);
+                        break;
+                }
+            }
+
+            return new ThrowResolution(throwResult, hits.AsReadOnly(), shieldGained);
+        }
+
+        /// <summary>
+        ///     攻撃効果の対象を決め、結果を発動順に追加する
+        /// </summary>
+        private static void ResolveAttack(
+            AttackCardEffect attack, DartboardRing ring, BattleState state,
+            int? preferredEnemyIndex, List<EnemyHitResult> hits)
+        {
+            if (attack.Scope == AttackTargetScope.AllEnemies)
+            {
                 foreach (EnemyModel enemy in state.Enemies)
                 {
                     if (enemy.IsAlive)
                     {
-                        hits.Add(DamageResolver.Resolve(enemy, card.BaseDamage, ring));
+                        hits.Add(DamageResolver.Resolve(enemy, attack.BaseDamage, ring));
                     }
                 }
 
-                return new ThrowResolution(throwResult, hits.AsReadOnly());
+                return;
             }
 
             EnemyModel? target = preferredEnemyIndex is int enemyIndex
@@ -63,13 +88,10 @@ namespace DartsRoguelike.Core.Model
 
             // 狙っている敵がいない場合は、左端の生存敵を狙う
             target ??= state.FindFirstLivingEnemy();
-            if (target == null)
+            if (target != null)
             {
-                return new ThrowResolution(throwResult);
+                hits.Add(DamageResolver.Resolve(target, attack.BaseDamage, ring));
             }
-
-            EnemyHitResult hit = DamageResolver.Resolve(target, card.BaseDamage, ring);
-            return new ThrowResolution(throwResult, Array.AsReadOnly(new[] { hit }));
         }
     }
 }

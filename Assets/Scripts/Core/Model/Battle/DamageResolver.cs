@@ -12,15 +12,14 @@ namespace DartsRoguelike.Core.Model
         /// </summary>
         public static EnemyHitResult Resolve(EnemyModel target, int baseDamage, DartboardRing ring)
         {
-            int ringMultiplier = ring switch
+            if (baseDamage < 0)
             {
-                DartboardRing.Double => 2,
-                DartboardRing.Triple => 3,
-                _ => 1
-            };
+                throw new ArgumentOutOfRangeException(nameof(baseDamage));
+            }
 
+            int damage = DartboardEffectMultiplier.Apply(baseDamage, ring);
             (int healthLost, int shieldLost, bool wasDefeated) =
-                Resolve(target, baseDamage, ringMultiplier);
+                Resolve(target, damage);
             return new EnemyHitResult(target, healthLost, shieldLost, wasDefeated);
         }
 
@@ -28,7 +27,7 @@ namespace DartsRoguelike.Core.Model
         ///     プレイヤーと敵に共通の手順でシールド、HPの順にダメージを適用する
         /// </summary>
         internal static (int HealthLost, int ShieldLost, bool WasDefeated) Resolve(
-            BattleCharacterModel target, int baseDamage, int multiplier = 1)
+            BattleCharacterModel target, int baseDamage)
         {
             if (target == null)
             {
@@ -45,10 +44,8 @@ namespace DartsRoguelike.Core.Model
                 return (0, 0, false);
             }
 
-            // 倍率を掛けてもダメージが負にあふれないようにする
-            int damage = (int)Math.Min((long)baseDamage * multiplier, int.MaxValue);
-            int shieldLost = target.AbsorbDamage(damage);
-            int healthLost = target.TakeDamage(damage - shieldLost);
+            int shieldLost = target.AbsorbDamage(baseDamage);
+            int healthLost = target.TakeDamage(baseDamage - shieldLost);
             return (healthLost, shieldLost, !target.IsAlive);
         }
     }

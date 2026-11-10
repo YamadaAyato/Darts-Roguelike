@@ -10,6 +10,70 @@ namespace DartsRoguelike.Tests.EditMode
     public class ThrowEffectResolverTests
     {
         /// <summary>
+        ///     複数効果を登録順に解決し、カード全体を一度だけ使うことを検証する
+        /// </summary>
+        [Test]
+        public void Resolve_CompositeCard_AppliesEffectsInOrderOnce()
+        {
+            var left = new EnemyModel(3);
+            var right = new EnemyModel(10);
+            var board = new BoardState();
+            var cell = new DartboardCellId(11, DartboardRing.Double);
+            board.SetCard(cell, new BoardCard(new IBoardCardEffect[]
+            {
+                new AttackCardEffect(2),
+                new ShieldCardEffect(2),
+                new AttackCardEffect(1, AttackTargetScope.AllEnemies)
+            }));
+            var state = new BattleState(board, new[] { left, right });
+            var result = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 22));
+
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(result, state, preferredEnemyIndex: 0);
+
+            Assert.That(resolution.EnemyHits, Has.Count.EqualTo(2));
+            Assert.That(resolution.EnemyHits[0].Target, Is.SameAs(left));
+            Assert.That(resolution.EnemyHits[0].WasDefeated, Is.True);
+            Assert.That(resolution.EnemyHits[1].Target, Is.SameAs(right));
+            Assert.That(right.CurrentHealth, Is.EqualTo(8));
+            Assert.That(resolution.ShieldGained, Is.EqualTo(4));
+            Assert.That(state.Player.CurrentShield, Is.EqualTo(4));
+            Assert.That(board.IsCardUsed(cell), Is.True);
+
+            ThrowResolution repeated = ThrowEffectResolver.Resolve(result, state);
+            Assert.That(repeated.EnemyHits, Is.Empty);
+            Assert.That(repeated.ShieldGained, Is.Zero);
+        }
+
+        /// <summary>
+        ///     防御カードのリング倍率と、敵ターン後のHP・シールド残量を検証する
+        /// </summary>
+        [TestCase(DartboardRing.OuterSingle, 4, 9, 0)]
+        [TestCase(DartboardRing.Double, 8, 12, 1)]
+        [TestCase(DartboardRing.Triple, 10, 12, 3)]
+        public void Resolve_ShieldCard_AppliesRingMultiplierAndKeepsRemainingShield(
+            DartboardRing ring, int expectedGained, int expectedHealth, int expectedShield)
+        {
+            var board = new BoardState();
+            var cell = new DartboardCellId(11, ring);
+            board.SetCard(cell, BoardCard.CreateShield(4));
+            var player = new BattleCharacterModel(12, maxShield: 10);
+            var enemy = new EnemyModel(20, attackDamage: 7);
+            var state = new BattleState(board, new[] { enemy }, throwsPerTurn: 1, player: player);
+            var result = new DartThrowResult(Vector2.left, new DartboardHitResult(cell, 11));
+
+            Assert.That(state.TryConsumeThrow(), Is.True);
+            ThrowResolution resolution = ThrowEffectResolver.Resolve(result, state);
+            Assert.That(resolution.ShieldGained, Is.EqualTo(expectedGained));
+            Assert.That(resolution.DidAttack, Is.False);
+            Assert.That(enemy.CurrentHealth, Is.EqualTo(20));
+            Assert.That(board.IsCardUsed(cell), Is.True);
+            Assert.That(ThrowEffectResolver.Resolve(result, state).ShieldGained, Is.Zero);
+            Assert.That(state.TryResolveEnemyTurn(), Is.True);
+            Assert.That(player.CurrentHealth, Is.EqualTo(expectedHealth));
+            Assert.That(player.CurrentShield, Is.EqualTo(expectedShield));
+        }
+
+        /// <summary>
         ///     単体攻撃が左から順に生存敵へ適用されることを検証する
         /// </summary>
         [Test]
@@ -151,7 +215,7 @@ namespace DartsRoguelike.Tests.EditMode
 
             var board = new BoardState();
             var cell = new DartboardCellId(20, DartboardRing.Double);
-            board.SetCard(cell, new BoardCard(2, BoardCard.TargetScope.AllEnemies));
+            board.SetCard(cell, new BoardCard(2, AttackTargetScope.AllEnemies));
 
             var state = new BattleState(board, new[] { leftEnemy, defeatedEnemy, rightEnemy });
             var hit = new DartboardHitResult(cell, 40);

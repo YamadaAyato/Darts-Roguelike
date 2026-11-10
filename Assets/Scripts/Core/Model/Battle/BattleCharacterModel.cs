@@ -7,7 +7,7 @@ namespace DartsRoguelike.Core.Model
     /// </summary>
     public class BattleCharacterModel
     {
-        public BattleCharacterModel(int maxHealth, int initialShield = 0)
+        public BattleCharacterModel(int maxHealth, int initialShield = 0, int maxShield = int.MaxValue)
         {
             if (maxHealth <= 0)
             {
@@ -15,15 +15,21 @@ namespace DartsRoguelike.Core.Model
                     nameof(maxHealth), maxHealth, "最大HPは1以上にしてください");
             }
 
-            if (initialShield < 0)
+            if (maxShield < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxShield));
+            }
+
+            if (initialShield < 0 || initialShield > maxShield)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(initialShield), initialShield, "初期シールドは0以上にしてください");
+                    nameof(initialShield), initialShield, "初期シールドは0以上かつ上限以下にしてください");
             }
 
             MaxHealth = maxHealth;
             CurrentHealth = maxHealth;
             CurrentShield = initialShield;
+            MaxShield = maxShield;
         }
 
         /// <summary> 最大HP </summary>
@@ -34,6 +40,9 @@ namespace DartsRoguelike.Core.Model
 
         /// <summary> 現在のシールド </summary>
         public int CurrentShield { get; private set; }
+
+        /// <summary> 蓄えられるシールドの上限 </summary>
+        public int MaxShield { get; }
 
         /// <summary> 生存しているかどうか </summary>
         public bool IsAlive => CurrentHealth > 0;
@@ -54,6 +63,17 @@ namespace DartsRoguelike.Core.Model
             int healthLost = Math.Min(CurrentHealth, damage);
             CurrentHealth -= healthLost;
             return healthLost;
+        }
+
+        /// <summary>
+        ///     上限までシールドを加算する
+        /// </summary>
+        /// <returns> 実際に増えたシールド </returns>
+        internal int GainShield(int amount)
+        {
+            int gained = Math.Min(amount, MaxShield - CurrentShield);
+            CurrentShield += gained;
+            return gained;
         }
 
         /// <summary>

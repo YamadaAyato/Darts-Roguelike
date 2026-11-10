@@ -1,37 +1,48 @@
 using System;
+using System.Collections.Generic;
 
 namespace DartsRoguelike.Core.Model
 {
     /// <summary>
-    ///     盤面に配置する攻撃カードの効果量を表す
+    ///     盤面に配置するカードの効果を発動順に保持する
     /// </summary>
     public class BoardCard
     {
-        public BoardCard(int baseDamage, TargetScope scope = TargetScope.SingleEnemy)
+        public BoardCard(int baseDamage, AttackTargetScope scope = AttackTargetScope.SingleEnemy)
+            : this(new IBoardCardEffect[] { new AttackCardEffect(baseDamage, scope) })
         {
-            if (baseDamage <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(baseDamage), baseDamage, "基本ダメージは1以上にしてください");
-            }
-
-            BaseDamage = baseDamage;
-            Scope = scope;
         }
 
-        /// <summary> リング倍率を適用する前の基本ダメージ </summary>
-        public int BaseDamage { get; }
+        public BoardCard(IReadOnlyList<IBoardCardEffect> effects)
+        {
+            if (effects == null)
+            {
+                throw new ArgumentNullException(nameof(effects));
+            }
 
-        /// <summary> 攻撃が届く範囲 </summary>
-        public TargetScope Scope { get; }
+            if (effects.Count == 0)
+            {
+                throw new ArgumentException("カード効果を1つ以上指定してください", nameof(effects));
+            }
+
+            var copy = new List<IBoardCardEffect>(effects.Count);
+            foreach (IBoardCardEffect effect in effects)
+            {
+                copy.Add(effect ?? throw new ArgumentException("空のカード効果は指定できません", nameof(effects)));
+            }
+
+            Effects = copy.AsReadOnly();
+        }
+
+        /// <summary> カードの効果を発動順に並べた一覧 </summary>
+        public IReadOnlyList<IBoardCardEffect> Effects { get; }
 
         /// <summary>
-        ///     攻撃カードの対象範囲
+        ///     シールドを付与する単体効果のカードを作る
         /// </summary>
-        public enum TargetScope
+        public static BoardCard CreateShield(int baseShield)
         {
-            SingleEnemy,
-            AllEnemies
+            return new BoardCard(new IBoardCardEffect[] { new ShieldCardEffect(baseShield) });
         }
     }
 }

@@ -4301,12 +4301,19 @@ MonoBehaviour:
   _cardPlacements:
   - _number: 20
     _ring: 2
-    _attackDamage: 8
+    _amount: 8
+    _effect: 0
     _scope: 0
   - _number: 6
     _ring: 2
-    _attackDamage: 4
+    _amount: 4
+    _effect: 0
     _scope: 1
+  - _number: 11
+    _ring: 2
+    _amount: 4
+    _effect: 1
+    _scope: 0
 --- !u!1 &1376441509
 GameObject:
   m_ObjectHideFlags: 0

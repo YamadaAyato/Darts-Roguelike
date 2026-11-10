@@ -1,4 +1,5 @@
 using DartsRoguelike.Core.Model;
+using DartsRoguelike.Definitions;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -28,8 +29,9 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Tooltip("初期カードの配置と効果")]
         private CardSetup[] _cardPlacements =
         {
-            new CardSetup(20, DartboardRing.OuterSingle, 8, BoardCard.TargetScope.SingleEnemy),
-            new CardSetup(6, DartboardRing.OuterSingle, 4, BoardCard.TargetScope.AllEnemies)
+            new CardSetup(20, DartboardRing.OuterSingle, 8, AttackTargetScope.SingleEnemy),
+            new CardSetup(6, DartboardRing.OuterSingle, 4, AttackTargetScope.AllEnemies),
+            new CardSetup(11, DartboardRing.OuterSingle, 4, AttackTargetScope.SingleEnemy, SandboxCardEffectKind.Shield)
         };
 
         private BattleState _state;
@@ -57,7 +59,7 @@ namespace DartsRoguelike.Presentation
                 enemies[i] = new EnemyModel(setup.MaxHealth, attackDamage: setup.AttackDamage);
             }
 
-            _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12));
+            _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12, maxShield: 12));
             _enemyRosterView.SetCount(enemies.Length);
             _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
             _victoryLabel.SetActive(false);
@@ -123,7 +125,7 @@ namespace DartsRoguelike.Presentation
         private void RefreshTurnLabel()
         {
             _turnLabel.enabled = !_state.AreAllEnemiesDefeated;
-            string health = $"HP {_state.Player.CurrentHealth}/{_state.Player.MaxHealth}";
+            string health = $"HP {_state.Player.CurrentHealth}/{_state.Player.MaxHealth}  SH {_state.Player.CurrentShield}";
             if (!_state.Player.IsAlive)
             {
                 _turnLabel.text = $"DEFEAT  |  {health}";
@@ -132,7 +134,7 @@ namespace DartsRoguelike.Presentation
 
             _turnLabel.text = _state.IsEnemyTurn
                 ? $"{health}  |  ENEMY: ENTER"
-                : $"{health}  |  PLAYER: {_state.RemainingThrows} DARTS";
+                : $"{health}  |  DARTS {_state.RemainingThrows}";
         }
 
         /// <summary>
@@ -165,11 +167,31 @@ namespace DartsRoguelike.Presentation
         private void RefreshCardLabel(DartboardCellId cell, BoardCardStatusView view)
         {
             BoardCard card = _state.Board.GetCard(cell);
-            view.Render(
-                FormatCellLabel(cell),
-                card?.BaseDamage,
-                card?.Scope == BoardCard.TargetScope.AllEnemies,
-                _state.Board.IsCardUsed(cell));
+            view.Render(FormatCellLabel(cell), DescribeCard(card), _state.Board.IsCardUsed(cell));
+        }
+
+        /// <summary>
+        ///     凡例に表示するカード効果の要約を作る
+        /// </summary>
+        private static string DescribeCard(BoardCard card)
+        {
+            if (card == null)
+            {
+                return string.Empty;
+            }
+
+            if (card.Effects.Count > 1)
+            {
+                return $"Combo x{card.Effects.Count}";
+            }
+
+            return card.Effects[0] switch
+            {
+                AttackCardEffect attack =>
+                    $"{(attack.Scope == AttackTargetScope.AllEnemies ? "All" : "Single")} ATK {attack.BaseDamage}",
+                ShieldCardEffect shield => $"Shield {shield.BaseShield}",
+                _ => "Effect"
+            };
         }
 
         /// <summary>
@@ -222,22 +244,31 @@ namespace DartsRoguelike.Presentation
         [System.Serializable]
         private struct CardSetup
         {
-            public CardSetup(int number, DartboardRing ring, int attackDamage, BoardCard.TargetScope scope)
+            public CardSetup(
+                int number, DartboardRing ring, int amount, AttackTargetScope scope,
+                SandboxCardEffectKind effect = SandboxCardEffectKind.Attack)
             {
                 _number = number;
                 _ring = ring;
-                _attackDamage = attackDamage;
+                _amount = amount;
                 _scope = scope;
+                _effect = effect;
+                _definition = null;
             }
 
             [SerializeField, Range(0, 20), Tooltip("マスの番号。ブルは0")]
             private int _number;
             [SerializeField, Tooltip("マスのリング")]
             private DartboardRing _ring;
-            [SerializeField, Min(1), Tooltip("カードの基礎ダメージ")]
-            private int _attackDamage;
-            [SerializeField, Tooltip("攻撃の対象範囲")]
-            private BoardCard.TargetScope _scope;
+            [UnityEngine.Serialization.FormerlySerializedAs("_attackDamage")]
+            [SerializeField, Min(1), Tooltip("カードの基礎効果量")]
+            private int _amount;
+            [SerializeField, Tooltip("カードの効果")]
+            private SandboxCardEffectKind _effect;
+            [SerializeField, Tooltip("攻撃カードの対象範囲")]
+            private AttackTargetScope _scope;
+            [SerializeField, Tooltip("設定するとインラインの効果より優先するカードアセット")]
+            private BoardCardDefinition _definition;
 
             /// <summary>
             ///     設定した配置先のマスを作る
@@ -245,9 +276,19 @@ namespace DartsRoguelike.Presentation
             public DartboardCellId CreateCell() => new DartboardCellId(_number, _ring);
 
             /// <summary>
-            ///     設定した攻撃カードを作る
+            ///     設定した効果のカードを作る
             /// </summary>
-            public BoardCard CreateCard() => new BoardCard(_attackDamage, _scope);
+            public BoardCard CreateCard()
+            {
+                if (_definition != null)
+                {
+                    return _definition.CreateCard();
+                }
+
+                return _effect == SandboxCardEffectKind.Shield
+                    ? BoardCard.CreateShield(_amount)
+                    : new BoardCard(_amount, _scope);
+            }
         }
 
         [System.Serializable]
