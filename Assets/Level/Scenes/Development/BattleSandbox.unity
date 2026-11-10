@@ -4304,16 +4304,31 @@ MonoBehaviour:
     _amount: 8
     _effect: 0
     _scope: 0
+    _definition: {fileID: 11400000, guid: b9fcbf394fd5d15428d4f7bdcdf6cec1, type: 2}
   - _number: 6
     _ring: 2
     _amount: 4
     _effect: 0
     _scope: 1
+    _definition: {fileID: 0}
   - _number: 11
     _ring: 2
     _amount: 4
     _effect: 1
     _scope: 0
+    _definition: {fileID: 11400000, guid: 3b12447c304f4fa4da14f1129685c710, type: 2}
+  - _number: 12
+    _ring: 2
+    _amount: 8
+    _effect: 0
+    _scope: 0
+    _definition: {fileID: 11400000, guid: 7fbfb7fae219abf478850c85d45b91a4, type: 2}
+  - _number: 14
+    _ring: 2
+    _amount: 4
+    _effect: 0
+    _scope: 0
+    _definition: {fileID: 11400000, guid: 9a9cda0edd9a8974da4692c612ec5470, type: 2}
 --- !u!1 &1376441509
 GameObject:
   m_ObjectHideFlags: 0

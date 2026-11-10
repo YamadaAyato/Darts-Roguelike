@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c3a899c5eb81764990ef13541708496, type: 3}
+  m_Name: SandboxAttackAndShield
+  m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Definitions.BoardCardDefinition
+  _effect:
+    rid: 4673120342578561111
+  references:
+    version: 2
+    RefIds:
+    - rid: 4673120342578561111
+      type: {class: CompositeBoardCardEffectDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
+      data:
+        _effects:
+        - rid: 4673120342578561112
+        - rid: 4673120342578561113
+    - rid: 4673120342578561112
+      type: {class: AttackBoardCardEffectDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
+      data:
+        _baseDamage: 8
+        _scope: 0
+    - rid: 4673120342578561113
+      type: {class: ShieldBoardCardEffectDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
+      data:
+        _baseShield: 4
