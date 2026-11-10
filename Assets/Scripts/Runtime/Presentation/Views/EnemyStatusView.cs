@@ -22,13 +22,12 @@ namespace DartsRoguelike.Presentation
         }
 
         /// <summary>
-        ///     HPと次の攻撃予定を表示する
+        ///     HP、基礎攻撃力、次の行動予告を表示する
         /// </summary>
-        /// <param name="nextAttackDamage"> 0の場合は攻撃予告を表示しない </param>
-        public void Render(int currentHealth, int maxHealth, int nextAttackDamage)
+        public void Render(int currentHealth, int maxHealth, int baseAttackDamage, string intent)
         {
-            string health = $"HP {currentHealth}/{maxHealth}";
-            _statusLabel.text = nextAttackDamage > 0 ? $"{health}  |  ATK {nextAttackDamage}" : health;
+            string health = $"HP {currentHealth}/{maxHealth}  BASE {baseAttackDamage}";
+            _statusLabel.text = string.IsNullOrEmpty(intent) ? health : $"{health}\n{intent}";
         }
     }
 }

@@ -23,6 +23,9 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Tooltip("カード再抽選の乱数シード")]
         private int _cardDrawSeed = 1;
 
+        [SerializeField, Tooltip("危険マスの配置抽選の乱数シード")]
+        private int _hazardDrawSeed = 1;
+
         [SerializeField, Tooltip("開発シーンに出現する敵の編成")]
         private EnemySetup[] _enemyFormation = { new EnemySetup(8, 3), new EnemySetup(16, 4) };
 
@@ -56,10 +59,11 @@ namespace DartsRoguelike.Presentation
             for (int i = 0; i < enemies.Length; i++)
             {
                 EnemySetup setup = _enemyFormation[i];
-                enemies[i] = new EnemyModel(setup.MaxHealth, attackDamage: setup.AttackDamage);
+                enemies[i] = setup.CreateEnemy();
             }
 
-            _state = new BattleState(board, enemies, _throwsPerTurn, new BattleCharacterModel(12, maxShield: 12));
+            _state = new BattleState(board, enemies, _throwsPerTurn,
+                new BattleCharacterModel(12, maxShield: 12), hazardSeed: _hazardDrawSeed);
             _enemyRosterView.SetCount(enemies.Length);
             _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
             _victoryLabel.SetActive(false);
@@ -105,7 +109,12 @@ namespace DartsRoguelike.Presentation
                 RefreshEnemyStatus();
             }
 
-            if (_state.AreAllEnemiesDefeated)
+            if (!_state.Player.IsAlive)
+            {
+                _inputBinding.enabled = false;
+                RefreshEnemyStatus();
+            }
+            else if (_state.AreAllEnemiesDefeated)
             {
                 _inputBinding.enabled = false;
                 _victoryLabel.SetActive(true);
@@ -145,8 +154,8 @@ namespace DartsRoguelike.Presentation
             for (int i = 0; i < _state.Enemies.Count; i++)
             {
                 EnemyModel enemy = _state.Enemies[i];
-                int nextAttackDamage = _state.Player.IsAlive ? enemy.NextAttackDamage : 0;
-                _enemyRosterView.Render(i, enemy.CurrentHealth, enemy.MaxHealth, nextAttackDamage);
+                _enemyRosterView.Render(i, enemy.CurrentHealth, enemy.MaxHealth,
+                    enemy.BaseAttackDamage, DescribeEnemyIntent(enemy));
             }
         }
 
@@ -167,7 +176,8 @@ namespace DartsRoguelike.Presentation
         private void RefreshCardLabel(DartboardCellId cell, BoardCardStatusView view)
         {
             BoardCard card = _state.Board.GetCard(cell);
-            view.Render(FormatCellLabel(cell), DescribeCard(card), _state.Board.IsCardUsed(cell));
+            view.Render(FormatCellLabel(cell), DescribeCard(card), _state.Board.IsCardUsed(cell),
+                DescribeHazard(_state.Board.GetHazard(cell)));
         }
 
         /// <summary>
@@ -191,8 +201,58 @@ namespace DartsRoguelike.Presentation
                     $"{(attack.Scope == AttackTargetScope.AllEnemies ? "All" : "Single")} ATK {attack.BaseDamage}",
                 ShieldCardEffect shield => $"Shield {shield.BaseShield}",
                 HealCardEffect heal => $"Heal {heal.BaseHealing}",
+                PlaceHazardEffect => "Place hazard",
+                HazardPlacementRequest => "Place hazard",
                 _ => "Effect"
             };
+        }
+
+        /// <summary>
+        ///     確定した行動一覧から敵の予告表示を作る
+        /// </summary>
+        private string DescribeEnemyIntent(EnemyModel enemy)
+        {
+            if (!_state.Player.IsAlive || !enemy.IsAlive)
+            {
+                return string.Empty;
+            }
+
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (IEnemyAction action in enemy.PlannedActions)
+            {
+                switch (action)
+                {
+                    case EnemyAttackAction attack:
+                        int damage = EnemyActionResolver.CalculateAttackDamage(enemy, attack);
+                        if (damage > 0)
+                        {
+                            parts.Add(attack.DamageMultiplier == 1
+                                ? $"ATK {damage}"
+                                : $"ATK x{attack.DamageMultiplier:0.##} ({damage})");
+                        }
+                        break;
+                    case PlaceHazardEffect placement:
+                        parts.Add($"MINE {FormatCellLabel(placement.Cell)} ({DescribeHazard(placement.Hazard)})");
+                        break;
+                }
+            }
+
+            return string.Join(" + ", parts);
+        }
+
+        /// <summary>
+        ///     危険効果のダメージまたは効果数を表示用に要約する
+        /// </summary>
+        private static string DescribeHazard(BoardHazard hazard)
+        {
+            if (hazard == null)
+            {
+                return string.Empty;
+            }
+
+            return hazard.Effects.Count == 1 && hazard.Effects[0] is HazardDamageEffect damage
+                ? damage.Damage.ToString()
+                : $"x{hazard.Effects.Count}";
         }
 
         /// <summary>
@@ -299,6 +359,7 @@ namespace DartsRoguelike.Presentation
             {
                 _maxHealth = maxHealth;
                 _attackDamage = attackDamage;
+                _definition = null;
             }
 
             /// <summary> 敵の最大HP </summary>
@@ -312,6 +373,19 @@ namespace DartsRoguelike.Presentation
 
             [SerializeField, Min(0), Tooltip("敵の通常攻撃力")]
             private int _attackDamage;
+
+            [SerializeField, Tooltip("設定するとインライン設定より優先する敵アセット")]
+            private EnemyDefinition _definition;
+
+            /// <summary>
+            ///     敵アセット、または開発用インライン設定から敵を生成する
+            /// </summary>
+            public EnemyModel CreateEnemy()
+            {
+                return _definition != null
+                    ? _definition.CreateEnemy()
+                    : new EnemyModel(_maxHealth, attackDamage: _attackDamage);
+            }
         }
     }
 }

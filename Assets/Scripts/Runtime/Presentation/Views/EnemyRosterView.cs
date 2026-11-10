@@ -35,9 +35,9 @@ namespace DartsRoguelike.Presentation
         /// <summary>
         ///     指定位置にいる敵のステータスを更新する
         /// </summary>
-        public void Render(int enemyIndex, int currentHealth, int maxHealth, int nextAttackDamage)
+        public void Render(int enemyIndex, int currentHealth, int maxHealth, int baseAttackDamage, string intent)
         {
-            _views[enemyIndex].Render(currentHealth, maxHealth, nextAttackDamage);
+            _views[enemyIndex].Render(currentHealth, maxHealth, baseAttackDamage, intent);
         }
     }
 }
