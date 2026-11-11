@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using DartsRoguelike.Core.Model;
-using GameFoundation.Runtime.Attributers;
 using UnityEngine;
 
 namespace DartsRoguelike.Definitions
 {
     /// <summary>
-    ///     敵の最大HPと、順に実行する行動を設定するアセット
+    ///     敵の能力値と、順番に繰り返すターンごとの行動を設定するアセット
     /// </summary>
     [CreateAssetMenu(fileName = "Enemy", menuName = "Darts Roguelike/Enemy")]
     public class EnemyDefinition : ScriptableObject
@@ -16,26 +15,34 @@ namespace DartsRoguelike.Definitions
         private int _maxHealth = 8;
         [SerializeField, Min(0), Tooltip("通常攻撃と倍率攻撃の基準となる攻撃力")]
         private int _baseAttackDamage = 3;
-        [SerializeReference, SubclassSelector, Tooltip("敵ターンで上から順に実行する行動")]
-        private List<EnemyActionDefinition> _actions = new List<EnemyActionDefinition>();
+        [SerializeField, Tooltip("上から順に実行し、最後の次は先頭へ戻るターン一覧")]
+        private List<EnemyTurnDefinition> _turns = new List<EnemyTurnDefinition>
+        {
+            new EnemyTurnDefinition()
+        };
 
         /// <summary>
         ///     アセットの設定から戦闘用の敵を生成する
         /// </summary>
         public EnemyModel CreateEnemy()
         {
-            var actions = new List<IEnemyAction>(_actions.Count);
-            foreach (EnemyActionDefinition action in _actions)
+            if (_turns.Count == 0)
             {
-                if (action == null)
-                {
-                    throw new InvalidOperationException($"[{name}] 未設定の敵行動があります");
-                }
-
-                actions.Add(action.CreateAction());
+                throw new InvalidOperationException($"[{name}] 行動パターンを1ターン以上設定してください");
             }
 
-            return new EnemyModel(_maxHealth, attackDamage: _baseAttackDamage, plannedActions: actions);
+            var turns = new List<EnemyTurn>(_turns.Count);
+            foreach (EnemyTurnDefinition turn in _turns)
+            {
+                if (turn == null)
+                {
+                    throw new InvalidOperationException($"[{name}] 未設定のターンがあります");
+                }
+
+                turns.Add(turn.CreateTurn());
+            }
+
+            return new EnemyModel(_maxHealth, turns, attackDamage: _baseAttackDamage);
         }
     }
 }

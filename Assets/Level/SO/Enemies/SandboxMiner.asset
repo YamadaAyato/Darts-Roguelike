@@ -13,20 +13,35 @@ MonoBehaviour:
   m_Name: SandboxMiner
   m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Definitions.EnemyDefinition
   _maxHealth: 8
-  _actions:
-  - rid: 4673120342578561126
-  - rid: 4673120342578561127
+  _baseAttackDamage: 3
+  _turns:
+  - _actions:
+    - rid: 4673120342578561147
+  - _actions:
+    - rid: 4673120342578561148
+    - rid: 4673120342578561149
+  - _actions:
+    - rid: 4673120342578561150
   references:
     version: 2
     RefIds:
-    - rid: 4673120342578561126
+    - rid: 4673120342578561147
       type: {class: AttackEnemyActionDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
       data:
-        _damage: 3
-    - rid: 4673120342578561127
+        _damageMultiplier: 1
+    - rid: 4673120342578561148
       type: {class: PlaceHazardEnemyActionDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
       data:
         _placement:
+          _mode: 0
           _number: 14
           _ring: 2
           _damage: 3
+    - rid: 4673120342578561149
+      type: {class: AttackEnemyActionDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
+      data:
+        _damageMultiplier: 1
+    - rid: 4673120342578561150
+      type: {class: AttackEnemyActionDefinition, ns: DartsRoguelike.Definitions, asm: DartsRoguelike.Runtime}
+      data:
+        _damageMultiplier: 2

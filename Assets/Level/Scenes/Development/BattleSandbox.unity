@@ -4151,6 +4151,7 @@ GameObject:
   - component: {fileID: 1321270718}
   - component: {fileID: 1321270720}
   - component: {fileID: 1321270721}
+  - component: {fileID: 1321270722}
   m_Layer: 0
   m_Name: DartboardPreview
   m_TagString: Untagged
@@ -4291,8 +4292,10 @@ MonoBehaviour:
   _victoryLabel: {fileID: 870556454}
   _turnLabel: {fileID: 646738780}
   _boardCardListView: {fileID: 136591472}
+  _boardHazardView: {fileID: 1321270722}
   _throwsPerTurn: 3
   _cardDrawSeed: 1
+  _hazardDrawSeed: 1
   _enemyFormation:
   - _maxHealth: 8
     _attackDamage: 3
@@ -4337,6 +4340,22 @@ MonoBehaviour:
     _effect: 0
     _scope: 0
     _definition: {fileID: 11400000, guid: a019aa313ff9fb1438d9200d79bdee0f, type: 2}
+--- !u!114 &1321270722
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1321270714}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bfeacd718f4fc5a44b20c3fa4e2d3e4d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DartsRoguelike.Runtime::DartsRoguelike.Presentation.BoardHazardView
+  _surface: {fileID: 1321270716}
+  _cellTemplate: {fileID: 519704654956466614, guid: 794a07c923b73034d95110cc1fe9f061, type: 3}
+  _arcSegments: 12
+  _surfaceOffset: 0.004
 --- !u!1 &1376441509
 GameObject:
   m_ObjectHideFlags: 0
