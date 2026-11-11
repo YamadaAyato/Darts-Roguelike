@@ -15,6 +15,9 @@ namespace DartsRoguelike.Core.Model
             _cardDeck = cardDeck;
         }
 
+        /// <summary> 危険効果が設置されているマス </summary>
+        public IEnumerable<DartboardCellId> HazardCells => _hazards.Keys;
+
         private readonly Dictionary<DartboardCellId, BoardCard> _cards =
             new Dictionary<DartboardCellId, BoardCard>();
         private readonly Dictionary<DartboardCellId, BoardHazard> _hazards =

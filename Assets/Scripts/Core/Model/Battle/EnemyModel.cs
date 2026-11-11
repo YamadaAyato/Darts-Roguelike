@@ -13,6 +13,15 @@ namespace DartsRoguelike.Core.Model
         public EnemyModel(
             int maxHealth, int initialShield = 0, int attackDamage = 0,
             IReadOnlyList<IEnemyAction>? plannedActions = null)
+            : this(maxHealth, new[]
+            {
+                new EnemyTurn(plannedActions ?? new IEnemyAction[] { new EnemyAttackAction() })
+            }, initialShield, attackDamage)
+        {
+        }
+
+        public EnemyModel(
+            int maxHealth, IReadOnlyList<EnemyTurn> actionPattern, int initialShield = 0, int attackDamage = 0)
             : base(maxHealth, initialShield)
         {
             if (attackDamage < 0)
@@ -20,21 +29,24 @@ namespace DartsRoguelike.Core.Model
                 throw new ArgumentOutOfRangeException(nameof(attackDamage));
             }
 
-            var actions = new List<IEnemyAction>();
-            if (plannedActions == null)
+            if (actionPattern == null)
             {
-                actions.Add(new EnemyAttackAction());
-            }
-            else
-            {
-                foreach (IEnemyAction action in plannedActions)
-                {
-                    actions.Add(action ?? throw new ArgumentException("未設定の敵行動があります", nameof(plannedActions)));
-                }
+                throw new ArgumentNullException(nameof(actionPattern));
             }
 
-            _actionTemplates = actions.AsReadOnly();
-            PlannedActions = _actionTemplates;
+            if (actionPattern.Count == 0)
+            {
+                throw new ArgumentException("行動パターンには1ターン以上指定してください", nameof(actionPattern));
+            }
+
+            var turns = new List<EnemyTurn>(actionPattern.Count);
+            foreach (EnemyTurn turn in actionPattern)
+            {
+                turns.Add(turn ?? throw new ArgumentException("未設定のターンがあります", nameof(actionPattern)));
+            }
+
+            _actionPattern = turns.AsReadOnly();
+            PlannedActions = _actionPattern[0].Actions;
             BaseAttackDamage = attackDamage;
         }
 
@@ -44,15 +56,30 @@ namespace DartsRoguelike.Core.Model
         /// <summary> 各攻撃行動の計算に使う敵の基礎攻撃力 </summary>
         public int BaseAttackDamage { get; }
 
-        private readonly IReadOnlyList<IEnemyAction> _actionTemplates;
+        /// <summary> 現在予告しているパターン内のターン位置。先頭は0 </summary>
+        public int ActionTurnIndex { get; private set; }
+
+        /// <summary> 繰り返す行動パターンのターン数 </summary>
+        public int ActionTurnCount => _actionPattern.Count;
+
+        private readonly IReadOnlyList<EnemyTurn> _actionPattern;
+
+        /// <summary>
+        ///     次の行動ターンへ進み、末尾の次は先頭へ戻る
+        /// </summary>
+        internal void AdvanceActionTurn()
+        {
+            ActionTurnIndex = (ActionTurnIndex + 1) % _actionPattern.Count;
+        }
 
         /// <summary>
         ///     ランダム配置先を確定して次の敵ターンの予告を作る
         /// </summary>
         internal void PrepareActions(BoardState board, Random random)
         {
-            var actions = new List<IEnemyAction>(_actionTemplates.Count);
-            foreach (IEnemyAction template in _actionTemplates)
+            IReadOnlyList<IEnemyAction> templates = _actionPattern[ActionTurnIndex].Actions;
+            var actions = new List<IEnemyAction>(templates.Count);
+            foreach (IEnemyAction template in templates)
             {
                 if (template is HazardPlacementRequest request)
                 {

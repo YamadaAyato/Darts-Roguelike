@@ -108,6 +108,14 @@ namespace DartsRoguelike.Core.Model
 
             if (Player.IsAlive)
             {
+                foreach (EnemyModel enemy in Enemies)
+                {
+                    if (enemy.IsAlive)
+                    {
+                        enemy.AdvanceActionTurn();
+                    }
+                }
+
                 RemainingThrows = _throwsPerTurn;
                 Board.RefreshUsedCards();
                 PrepareEnemyActions();
