@@ -16,6 +16,7 @@ namespace DartsRoguelike.Presentation
         [SerializeField] private GameObject _victoryLabel;
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
         [SerializeField] private BoardCardListView _boardCardListView;
+        [SerializeField] private BoardHazardView _boardHazardView;
 
         [SerializeField, Min(1), Tooltip("プレイヤーターン開始時の投擲本数")]
         private int _throwsPerTurn = 3;
@@ -40,13 +41,14 @@ namespace DartsRoguelike.Presentation
         private BattleState _state;
         private DartboardCellId[] _cardCells;
         private BoardCardStatusView[] _cardViews;
+        private BoardHazardPresenter _hazardPresenter;
 
         private void Awake()
         {
             if (_inputBinding == null || _enemyRosterView == null ||
                 _enemyFormation == null || _enemyFormation.Length == 0 ||
                 _victoryLabel == null || _turnLabel == null ||
-                _boardCardListView == null || _cardPlacements == null)
+                _boardCardListView == null || _cardPlacements == null || _boardHazardView == null)
             {
                 Debug.LogError($"[{nameof(BattleSandbox)}] 投擲入力、戦闘の表示、敵の編成を設定してください", this);
                 enabled = false;
@@ -64,6 +66,7 @@ namespace DartsRoguelike.Presentation
 
             _state = new BattleState(board, enemies, _throwsPerTurn,
                 new BattleCharacterModel(12, maxShield: 12), hazardSeed: _hazardDrawSeed);
+            _hazardPresenter = new BoardHazardPresenter(_state, _boardHazardView);
             _enemyRosterView.SetCount(enemies.Length);
             _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
             _victoryLabel.SetActive(false);
@@ -160,10 +163,11 @@ namespace DartsRoguelike.Presentation
         }
 
         /// <summary>
-        ///     凡例にカードの配置と使用済み状態を反映する
+        ///     危険マスの盤面表示と、カードの配置や使用済み状態を示す凡例を更新する
         /// </summary>
         private void RefreshCardLabels()
         {
+            _hazardPresenter.Refresh();
             for (int i = 0; i < _cardCells.Length; i++)
             {
                 RefreshCardLabel(_cardCells[i], _cardViews[i]);
@@ -237,7 +241,7 @@ namespace DartsRoguelike.Presentation
                 }
             }
 
-            return string.Join(" + ", parts);
+            return parts.Count == 0 ? "WAIT" : string.Join(" + ", parts);
         }
 
         /// <summary>
