@@ -9,7 +9,7 @@ namespace DartsRoguelike.Presentation
     /// </summary>
     public class DartAimInputBinding : MonoBehaviour
     {
-        /// <summary> 投擲が確定したときの着弾結果 </summary>
+        /// <summary> 着弾したときの投擲結果 </summary>
         public event Action<DartThrowResult> OnThrowResolved;
 
         [SerializeField, Tooltip("入力を受け取るビュー")]
@@ -24,7 +24,11 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Min(1f), Tooltip("照準円を移動できる範囲")]
         private float _aimLimit;
 
+        [SerializeField, Tooltip("設定するとダーツが盤面に着くまで効果解決を待つ")]
+        private DartFlightView _flightView;
+
         private DartAimPresenter _presenter;
+        private DartThrowResult? _pendingThrow;
         private bool _throwRequested;
         private bool _cancelRequested;
 
@@ -47,6 +51,14 @@ namespace DartsRoguelike.Presentation
             }
         }
 
+        /// <summary>
+        ///     前の戦闘で表示したダーツを消す
+        /// </summary>
+        public void ClearFlightVisual()
+        {
+            _flightView?.Clear();
+        }
+
         private void OnEnable()
         {
             if (_presenter != null)
@@ -66,6 +78,12 @@ namespace DartsRoguelike.Presentation
 
             _throwRequested = false;
             _cancelRequested = false;
+            if (_pendingThrow.HasValue)
+            {
+                _pendingThrow = null;
+                ClearFlightVisual();
+            }
+
             _presenter.CancelAim();
         }
 
@@ -80,6 +98,18 @@ namespace DartsRoguelike.Presentation
             bool cancelRequested = _cancelRequested;
             _throwRequested = false;
             _cancelRequested = false;
+
+            // 飛行中の入力は使わず、到着した投擲だけを一度通知する
+            if (_pendingThrow is DartThrowResult pendingThrow)
+            {
+                if (_flightView.Advance(Time.deltaTime))
+                {
+                    _pendingThrow = null;
+                    OnThrowResolved?.Invoke(pendingThrow);
+                }
+
+                return;
+            }
 
             // クリックとキャンセルの両方が同時に発生した場合はキャンセルを優先する
             if (cancelRequested || !_inputView.isActiveAndEnabled)
@@ -127,8 +157,17 @@ namespace DartsRoguelike.Presentation
             {
                 DartThrowResult result = _presenter.Release(
                     UnityEngine.Random.value,
-                    UnityEngine.Random.value);
-                OnThrowResolved?.Invoke(result);
+                    UnityEngine.Random.value,
+                    out float spreadRadiusRate);
+                if (_flightView == null)
+                {
+                    _presenter.ShowThrowResult(result);
+                    OnThrowResolved?.Invoke(result);
+                    return;
+                }
+
+                _flightView.Play(result, spreadRadiusRate);
+                _pendingThrow = result;
             }
         }
 

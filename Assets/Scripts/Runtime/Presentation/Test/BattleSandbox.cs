@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DartsRoguelike.Core.Model;
 using DartsRoguelike.Definitions;
 using UnityEngine;
@@ -17,6 +18,9 @@ namespace DartsRoguelike.Presentation
         [SerializeField] private UnityEngine.UI.Text _turnLabel;
         [SerializeField] private BoardCardListView _boardCardListView;
         [SerializeField] private BoardHazardView _boardHazardView;
+        [SerializeField] private GameObject _rewardPanel;
+        [SerializeField] private UnityEngine.UI.Text _rewardLabel;
+        [SerializeField] private GameObject _landingMarker;
 
         [SerializeField, Min(1), Tooltip("プレイヤーターン開始時の投擲本数")]
         private int _throwsPerTurn = 3;
@@ -27,8 +31,13 @@ namespace DartsRoguelike.Presentation
         [SerializeField, Tooltip("危険マスの配置抽選の乱数シード")]
         private int _hazardDrawSeed = 1;
 
-        [SerializeField, Tooltip("開発シーンに出現する敵の編成")]
-        private EnemySetup[] _enemyFormation = { new EnemySetup(8, 3), new EnemySetup(16, 4) };
+        [SerializeField, Tooltip("ステージ順に並べた敵の編成")]
+        private StageSetup[] _stages =
+        {
+            new StageSetup(new[] { new EnemySetup(12, 2) }),
+            new StageSetup(new[] { new EnemySetup(8, 3), new EnemySetup(16, 2) }),
+            new StageSetup(new[] { new EnemySetup(36, 3) })
+        };
 
         [SerializeField, Tooltip("初期カードの配置と効果")]
         private CardSetup[] _cardPlacements =
@@ -42,11 +51,16 @@ namespace DartsRoguelike.Presentation
         private DartboardCellId[] _cardCells;
         private BoardCardStatusView[] _cardViews;
         private BoardHazardPresenter _hazardPresenter;
+        private int _stageIndex;
+        private bool _waitingToStart = true;
+        private bool _awaitingReward;
+        private BoardCard[] _rewardChoices;
+        private readonly List<BoardCard> _earnedCards = new List<BoardCard>();
 
         private void Awake()
         {
             if (_inputBinding == null || _enemyRosterView == null ||
-                _enemyFormation == null || _enemyFormation.Length == 0 ||
+                _stages == null || _stages.Length == 0 || _rewardPanel == null || _rewardLabel == null ||
                 _victoryLabel == null || _turnLabel == null ||
                 _boardCardListView == null || _cardPlacements == null || _boardHazardView == null)
             {
@@ -55,24 +69,23 @@ namespace DartsRoguelike.Presentation
                 return;
             }
 
-            BoardState board = CreateBoard();
-
-            var enemies = new EnemyModel[_enemyFormation.Length];
-            for (int i = 0; i < enemies.Length; i++)
+            foreach (StageSetup stage in _stages)
             {
-                EnemySetup setup = _enemyFormation[i];
-                enemies[i] = setup.CreateEnemy();
+                if (stage.Enemies == null || stage.Enemies.Length == 0)
+                {
+                    Debug.LogError($"[{nameof(BattleSandbox)}] 各ステージに敵を1体以上設定してください", this);
+                    enabled = false;
+                    return;
+                }
             }
 
-            _state = new BattleState(board, enemies, _throwsPerTurn,
-                new BattleCharacterModel(12, maxShield: 12), hazardSeed: _hazardDrawSeed);
-            _hazardPresenter = new BoardHazardPresenter(_state, _boardHazardView);
-            _enemyRosterView.SetCount(enemies.Length);
-            _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
+            _inputBinding.enabled = false;
+            _turnLabel.enabled = false;
             _victoryLabel.SetActive(false);
-            RefreshEnemyStatus();
-            RefreshTurnLabel();
-            RefreshCardLabels();
+            _rewardLabel.text = "DARTS ROGUELIKE\n\nLeft click to aim, left click again to throw\n" +
+                "Right click to cancel aim\nEnter after your throws to resolve the enemy turn\n" +
+                "Press 1-3 to choose a card after a win\n\nPress Enter to start";
+            _rewardPanel.SetActive(true);
         }
 
         private void OnEnable()
@@ -90,7 +103,29 @@ namespace DartsRoguelike.Presentation
 
         private void Update()
         {
-            if (Keyboard.current?.enterKey.wasPressedThisFrame == true && _state.TryResolveEnemyTurn())
+            Keyboard keyboard = Keyboard.current;
+            if (_waitingToStart)
+            {
+                if (keyboard?.enterKey.wasPressedThisFrame == true)
+                {
+                    _waitingToStart = false;
+                    StartBattle(new BattleCharacterModel(12, maxShield: 12));
+                }
+
+                return;
+            }
+
+            if (_awaitingReward)
+            {
+                if (keyboard != null)
+                {
+                    HandleRewardInput(keyboard);
+                }
+
+                return;
+            }
+
+            if (keyboard?.enterKey.wasPressedThisFrame == true && _state.TryResolveEnemyTurn())
             {
                 _inputBinding.enabled = _state.Player.IsAlive;
                 RefreshEnemyStatus();
@@ -120,7 +155,7 @@ namespace DartsRoguelike.Presentation
             else if (_state.AreAllEnemiesDefeated)
             {
                 _inputBinding.enabled = false;
-                _victoryLabel.SetActive(true);
+                ShowVictory();
             }
             else if (_state.IsEnemyTurn)
             {
@@ -132,12 +167,119 @@ namespace DartsRoguelike.Presentation
         }
 
         /// <summary>
+        ///     報酬選択中に数字キーからカードを確定する
+        /// </summary>
+        private void HandleRewardInput(Keyboard keyboard)
+        {
+            if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
+            {
+                ChooseReward(0);
+            }
+            else if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
+            {
+                ChooseReward(1);
+            }
+            else if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+            {
+                ChooseReward(2);
+            }
+        }
+
+        /// <summary>
+        ///     次のステージがある場合は報酬を表示し、最後の勝利では終了表示を出す
+        /// </summary>
+        private void ShowVictory()
+        {
+            _awaitingReward = _stageIndex + 1 < _stages.Length;
+            if (!_awaitingReward)
+            {
+                _victoryLabel.SetActive(true);
+                return;
+            }
+
+            // 過去に同じ種類を選んでいても、獲得した別のカードとしてデッキで扱う
+            _rewardChoices = new[]
+            {
+                new BoardCard(12),
+                BoardCard.CreateShield(6),
+                new BoardCard(new IBoardCardEffect[] { new HealCardEffect(6) })
+            };
+            _rewardLabel.text = $"STAGE {_stageIndex + 1} CLEAR\nPress 1-3 to choose a card\n\n" +
+                $"1   {DescribeCard(_rewardChoices[0])}\n" +
+                $"2   {DescribeCard(_rewardChoices[1])}\n" +
+                $"3   {DescribeCard(_rewardChoices[2])}";
+            _rewardPanel.SetActive(true);
+        }
+
+        /// <summary>
+        ///     選択したカードを獲得済みカードに加え、現在のHPで次のステージへ進む
+        /// </summary>
+        private void ChooseReward(int choiceIndex)
+        {
+            if (!_awaitingReward)
+            {
+                return;
+            }
+
+            BattleCharacterModel previousPlayer = _state.Player;
+            var player = new BattleCharacterModel(previousPlayer.MaxHealth, maxShield: previousPlayer.MaxShield);
+            player.TakeDamage(previousPlayer.MaxHealth - previousPlayer.CurrentHealth);
+            _earnedCards.Add(_rewardChoices[choiceIndex]);
+            _stageIndex++;
+            StartBattle(player);
+        }
+
+        /// <summary>
+        ///     戦闘用の状態を作り、盤面と表示を新しい戦闘に切り替える
+        /// </summary>
+        private void StartBattle(BattleCharacterModel player)
+        {
+            BoardState board = CreateBoard();
+            EnemySetup[] formation = _stages[_stageIndex].Enemies;
+            var enemies = new EnemyModel[formation.Length];
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                enemies[i] = formation[i].CreateEnemy();
+            }
+
+            _state = new BattleState(board, enemies, _throwsPerTurn, player, hazardSeed: _hazardDrawSeed);
+            _hazardPresenter = new BoardHazardPresenter(_state, _boardHazardView);
+            _enemyRosterView.SetCount(enemies.Length);
+
+            if (_cardViews != null)
+            {
+                foreach (BoardCardStatusView view in _cardViews)
+                {
+                    view.gameObject.SetActive(false);
+                    Destroy(view.gameObject);
+                }
+            }
+
+            _cardViews = _boardCardListView.CreateRows(_cardCells.Length);
+            _awaitingReward = false;
+            _victoryLabel.SetActive(false);
+            _rewardPanel.SetActive(false);
+
+            _inputBinding.ClearFlightVisual();
+            if (_landingMarker != null)
+            {
+                _landingMarker.SetActive(false);
+            }
+
+            _inputBinding.enabled = true;
+            RefreshEnemyStatus();
+            RefreshTurnLabel();
+            RefreshCardLabels();
+        }
+
+        /// <summary>
         ///     プレイヤーHPと現在のターンを表示する
         /// </summary>
         private void RefreshTurnLabel()
         {
-            _turnLabel.enabled = !_state.AreAllEnemiesDefeated;
+            _turnLabel.enabled = true;
             string health = $"HP {_state.Player.CurrentHealth}/{_state.Player.MaxHealth}  SH {_state.Player.CurrentShield}";
+            string stage = $"STAGE {_stageIndex + 1}/{_stages.Length}";
             if (!_state.Player.IsAlive)
             {
                 _turnLabel.text = $"DEFEAT  |  {health}";
@@ -145,8 +287,10 @@ namespace DartsRoguelike.Presentation
             }
 
             _turnLabel.text = _state.IsEnemyTurn
-                ? $"{health}  |  ENEMY: ENTER"
-                : $"{health}  |  DARTS {_state.RemainingThrows}";
+                ? $"{stage}  |  {health}  |  ENEMY: ENTER"
+                : _state.AreAllEnemiesDefeated
+                    ? $"{stage} CLEAR  |  {health}"
+                    : $"{stage}  |  {health}  |  DARTS {_state.RemainingThrows}";
         }
 
         /// <summary>
@@ -264,24 +408,38 @@ namespace DartsRoguelike.Presentation
         /// </summary>
         private BoardState CreateBoard()
         {
-            _cardCells = new DartboardCellId[_cardPlacements.Length];
-            // 末尾のnullを通常マスの再抽選候補にする
-            var candidates = new BoardCard[_cardPlacements.Length + 1];
-            var uniqueCells = new System.Collections.Generic.HashSet<DartboardCellId>();
-            for (int i = 0; i < _cardPlacements.Length; i++)
+            int cardCount = _cardPlacements.Length + _earnedCards.Count;
+            var cells = new List<DartboardCellId>(cardCount);
+            var candidates = new List<BoardCard>(cardCount + 1);
+            var uniqueCells = new HashSet<DartboardCellId>();
+            foreach (CardSetup setup in _cardPlacements)
             {
-                CardSetup setup = _cardPlacements[i];
                 DartboardCellId cell = setup.CreateCell();
                 if (!uniqueCells.Add(cell))
                 {
                     throw new System.InvalidOperationException($"[{nameof(BattleSandbox)}] カードの配置先が重複しています");
                 }
 
-                _cardCells[i] = cell;
-                candidates[i] = setup.CreateCard();
+                cells.Add(cell);
+                candidates.Add(setup.CreateCard());
             }
 
-            var board = new BoardState(new BoardCardDeck(candidates, _cardDrawSeed));
+            // 前のステージまでに獲得したカードをすべて抽選候補に加える
+            candidates.AddRange(_earnedCards);
+            // 報酬をすぐ試せるよう、空いているアウターシングルに獲得順で置く
+            for (int number = 1; number <= 20 && cells.Count < cardCount; number++)
+            {
+                var cell = new DartboardCellId(number, DartboardRing.OuterSingle);
+                if (uniqueCells.Add(cell))
+                {
+                    cells.Add(cell);
+                }
+            }
+
+            // nullは通常マスの再抽選候補を表す
+            candidates.Add(null);
+            _cardCells = cells.ToArray();
+            var board = new BoardState(new BoardCardDeck(candidates, _cardDrawSeed + _stageIndex));
             for (int i = 0; i < _cardCells.Length; i++)
             {
                 board.SetCard(_cardCells[i], candidates[i]);
@@ -354,6 +512,21 @@ namespace DartsRoguelike.Presentation
                     ? BoardCard.CreateShield(_amount)
                     : new BoardCard(_amount, _scope);
             }
+        }
+
+        [System.Serializable]
+        private struct StageSetup
+        {
+            public StageSetup(EnemySetup[] enemies)
+            {
+                _enemies = enemies;
+            }
+
+            /// <summary> ステージに出現する敵の編成 </summary>
+            public EnemySetup[] Enemies => _enemies;
+
+            [SerializeField, Tooltip("左から表示する順に並べた敵")]
+            private EnemySetup[] _enemies;
         }
 
         [System.Serializable]

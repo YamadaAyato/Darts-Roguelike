@@ -27,6 +27,10 @@ namespace DartsRoguelike.Core.Model
         /// <summary> 現在のスプレッド半径 </summary>
         public float SpreadRadius { get; private set; }
 
+        /// <summary> 最小半径を0、最大半径を1とした照準円の大きさ </summary>
+        public float SpreadRadiusRate =>
+            Mathf.InverseLerp(_parameters.MinimumSpreadRadius, _parameters.MaximumSpreadRadius, SpreadRadius);
+
         private readonly DartAimParameters _parameters;
 
         /// <summary>

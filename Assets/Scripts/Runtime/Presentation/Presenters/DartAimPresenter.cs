@@ -45,23 +45,32 @@ namespace DartsRoguelike.Presentation
         }
 
         /// <summary>
-        ///     ダーツを投げ、結果を表示する
+        ///     投擲の着弾点を確定し、照準表示を閉じる
         /// </summary>
         /// <param name="randomAngleRate"> ランダムな角度の割合 </param>
         /// <param name="randomDistanceRate"> ランダムな距離の割合 </param>
+        /// <param name="spreadRadiusRate"> 投擲時の照準円の大きさ。最小を0、最大を1とする </param>
         /// <returns> ダーツの投擲結果 </returns>
-        public DartThrowResult Release(float randomAngleRate,float randomDistanceRate)
+        public DartThrowResult Release(float randomAngleRate, float randomDistanceRate, out float spreadRadiusRate)
         {
-            DartThrowCommand command = 
+            spreadRadiusRate = _model.SpreadRadiusRate;
+            DartThrowCommand command =
                 _model.Release(randomAngleRate, randomDistanceRate);
 
             DartThrowResult result = 
                 DartThrowCalculator.Calculate(command);
 
             _view.HideAim();
-            _view.ShowThrowResult(result);
 
             return result;
+        }
+
+        /// <summary>
+        ///     着弾位置をマーカーで表示する
+        /// </summary>
+        public void ShowThrowResult(DartThrowResult result)
+        {
+            _view.ShowThrowResult(result);
         }
 
         /// <summary>
